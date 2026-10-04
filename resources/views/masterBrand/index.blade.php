@@ -8,7 +8,21 @@
             <div class="card">
                 <div class="card-header d-flex align-items-center justify-content-between">
                     <h3 class="card-title mb-0">Master Brand</h3>
-                    <div class="ml-auto">
+                    <div class="ml-auto d-flex">
+                        <div class="btn-group mr-2">
+                            <button type="button" class="btn btn-success btn-sm" id="btnExportExcel">
+                                <i class="fas fa-file-excel"></i> Excel
+                            </button>
+                            <button type="button" class="btn btn-info btn-sm" id="btnExportCsv">
+                                <i class="fas fa-file-csv"></i> CSV
+                            </button>
+                            <button type="button" class="btn btn-danger btn-sm" id="btnExportPdf">
+                                <i class="fas fa-file-pdf"></i> PDF
+                            </button>
+                            <button type="button" class="btn btn-secondary btn-sm" id="btnPrint">
+                                <i class="fas fa-print"></i> Print
+                            </button>
+                        </div>
                         <button id="tambahData" type="button" class="btn btn-primary btn-sm" data-toggle="modal"
                             data-target="#modal-tambah">
                             <i class="fas fa-plus"></i> Tambah Data
@@ -18,7 +32,22 @@
 
                 <!-- /.card-header -->
                 <div class="card-body">
-                    <table id="dt-brand" class="table table-bordered table-striped">
+                    <div class="d-flex justify-content-between mb-2">
+                        <div class="form-inline">
+                            <input type="text" id="searchBrand" class="form-control form-control-sm"
+                                placeholder="Cari...">
+                        </div>
+                        <div>
+                            <select id="perPage" class="form-control form-control-sm">
+                                <option value="10">10</option>
+                                <option value="25">25</option>
+                                <option value="50">50</option>
+                                <option value="100">100</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <table class="table table-bordered table-striped" id="tabel-brand">
                         <thead>
                             <tr>
                                 <th>#</th>
@@ -27,7 +56,17 @@
                                 <th>Action</th>
                             </tr>
                         </thead>
+                        <tbody id="tbody-brand">
+                            <!-- diisi via JS -->
+                        </tbody>
                     </table>
+
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div id="infoBrand" class="text-muted small"></div>
+                        <nav>
+                            <ul class="pagination pagination-sm mb-0" id="pagination-brand"></ul>
+                        </nav>
+                    </div>
                 </div>
                 <!-- /.card-body -->
             </div>
@@ -73,8 +112,8 @@
             </div>
         </div>
 
-        <div class="modal fade" id="modal-import-excel" tabindex="-1" role="dialog" aria-labelledby="modalImportLabel"
-            aria-hidden="true">
+        <div class="modal fade" id="modal-import-excel" tabindex="-1" role="dialog"
+            aria-labelledby="modalImportLabel" aria-hidden="true">
             <div class="modal-dialog" role="document">
                 <form id="form-import-brand" enctype="multipart/form-data">
                     <div class="modal-content">
@@ -152,7 +191,7 @@
                     const id = $(this).data('id');
                     // alert(id);
                     $.ajax({
-                        url: `/masterbrand/${id}`, // langsung aja
+                        url: `masterbrand/${id}`, // langsung aja
                         method: 'get',
                         success: function(res) {
                             if (res.status == 'success') {
@@ -187,7 +226,7 @@
                     // alert(id);
                     $('#idBrand').val(id);
                     $.ajax({
-                        url: `/masterbrand/${id}`, // langsung aja
+                        url: `masterbrand/${id}`, // langsung aja
                         method: 'get',
                         success: function(res) {
                             if (res.status == 'success') {
@@ -261,10 +300,10 @@
                             const kodeBrand = $('#kode_brand').val();
                             const namaBrand = $('#nama_brand').val();
 
-                            if (!kodeBrand && !namaBrand) {
+                            if (!kodeBrand || !namaBrand) {
                                 Swal.fire({
                                     title: 'Gagal!',
-                                    text: 'Brand gagal disimpan.',
+                                    text: 'Brand gagal disimpan. Pastikan semua terisi.',
                                     icon: 'error',
                                     confirmButtonText: 'OK'
                                 });
@@ -292,9 +331,7 @@
                                             });
 
                                             // Kalau pakai DataTables, refresh:
-                                            $('#dt-brand').DataTable().ajax
-                                                .reload(null,
-                                                    false);
+                                            loadBrand();
                                         } else {
                                             Swal.fire({
                                                 title: 'Gagal!',
@@ -331,7 +368,7 @@
                     }).then((result) => {
                         if (result.isConfirmed) {
                             $.ajax({
-                                url: `/masterbrand/${id}`,
+                                url: `masterbrand/${id}`,
                                 type: 'POST',
                                 data: {
                                     _method: 'DELETE',
@@ -340,7 +377,7 @@
                                 success: function(res) {
                                     if (res.status === 'success') {
                                         Swal.fire('Berhasil', res.message, 'success');
-                                        $('#dt-brand').DataTable().ajax.reload(null, false);
+                                        loadBrand();
                                     } else {
                                         Swal.fire('Gagal', res.message, 'error');
                                     }
@@ -379,18 +416,14 @@
                                 // Tutup modal import dan buka modal tambah
                                 $('#modal-import-excel').modal('hide');
                                 $('#form-import-brand')[0].reset();
-                                $('#dt-satuan').DataTable().ajax
-                                    .reload(null,
-                                        false);
+                                loadBrand();
                             } else {
                                 Swal.fire({
                                     icon: 'error',
                                     title: 'Gagal!',
                                     text: res.message
                                 });
-                                $('#dt-satuan').DataTable().ajax
-                                    .reload(null,
-                                        false);
+                                loadBrand();
                             }
                         },
                         error: function(xhr) {
@@ -400,9 +433,7 @@
                                 text: xhr.responseJSON?.message ||
                                     'Terjadi kesalahan saat import.'
                             });
-                            $('#dt-satuan').DataTable().ajax
-                                .reload(null,
-                                    false);
+                            loadBrand();
                         },
                         complete: function() {
                             $('#btnSimpanImport').prop('disabled', false).html('Simpan');
@@ -411,110 +442,152 @@
                 });
 
 
-                var table = $("#dt-brand").DataTable({
-                    dom: 'Bfrtip', // <<< penting!
-                    responsive: true,
-                    searching: true,
-                    ordering: true,
-                    info: true,
-                    lengthChange: false,
-                    autoWidth: false,
-                    processing: true, // indikator loading
-                    serverSide: true, // aktifkan server-side
-                    buttons: [{
-                            extend: 'csv',
-                            filename: 'data_brand',
-                            exportOptions: {
-                                columns: ':not(.not-export)'
-                            }
-                        },
-                        {
-                            extend: 'excel',
-                            filename: 'data_brand',
-                            exportOptions: {
-                                columns: ':not(.not-export)'
-                            }
-                        },
-                        {
-                            extend: 'pdf',
-                            filename: 'data_brand',
-                            exportOptions: {
-                                columns: ':not(.not-export)'
-                            },
-                            customize: function(doc) {
-                                var body = doc.content[1].table.body;
+                let currentPage = 1;
+                let searchTimeout = null;
 
-                                // Nomor urut + teks center
-                                for (var i = 1; i < body.length; i++) {
-                                    if (typeof body[i][0] === 'object') {
-                                        body[i][0].text = (i).toString();
-                                    } else {
-                                        body[i][0] = {
-                                            text: (i).toString()
-                                        };
-                                    }
+                function loadBrand(page = 1) {
+                    currentPage = page;
+                    const search = $('#searchBrand').val();
+                    const perPage = $('#perPage').val();
 
-                                    body[i][0].alignment = 'center';
-                                }
-
-                                body[0][0].alignment = 'center'; // Header nomor urut center
-
-                                // Atur lebar kolom otomatis
-                                doc.content[1].table.widths = Array(body[0].length).fill(
-                                    '*');
-
-                                // Tambahkan garis pembatas
-                                doc.content[1].layout = {
-                                    hLineWidth: function() {
-                                        return 0.5;
-                                    },
-                                    vLineWidth: function() {
-                                        return 0.5;
-                                    },
-                                    hLineColor: function() {
-                                        return '#aaa';
-                                    },
-                                    vLineColor: function() {
-                                        return '#aaa';
-                                    },
-                                };
-                            }
+                    $.ajax({
+                        url: "{{ url('/masterbrand') }}",
+                        method: 'get',
+                        data: {
+                            page,
+                            search,
+                            per_page: perPage
                         },
-                        {
-                            extend: 'print',
-                            exportOptions: {
-                                columns: ':not(.not-export)'
-                            }
+                        beforeSend: function() {
+                            $('#tbody-brand').html(
+                                '<tr><td colspan="4" class="text-center">Memuat data...</td></tr>');
                         },
-                    ],
-                    ajax: "{{ url('/masterbrand') }}",
-                    columns: [{
-                            data: null,
-                            name: 'no',
-                            render: function(data, type, row, meta) {
-                                return meta.row + meta.settings._iDisplayStart + 1;
-                            },
-                            className: 'text-center',
+                        success: function(res) {
+                            renderTable(res.data, res.from);
+                            renderPagination(res);
+                            $('#infoBrand').text(
+                                `Menampilkan ${res.from ?? 0} - ${res.to ?? 0} dari ${res.total} data`);
                         },
-                        {
-                            data: 'kode_brand',
-                            name: 'kode_brand'
-                        },
-                        {
-                            data: 'nama_brand',
-                            name: 'nama_brand'
-                        },
-                        {
-                            data: 'action',
-                            name: 'action',
-                            orderable: false,
-                            searchable: false,
-                            className: 'text-center not-export'
+                        error: function() {
+                            $('#tbody-brand').html(
+                                '<tr><td colspan="4" class="text-center text-danger">Gagal memuat data</td></tr>'
+                            );
                         }
-                    ],
+                    });
+                }
+
+                function renderTable(data, startNumber) {
+                    if (!data.length) {
+                        $('#tbody-brand').html('<tr><td colspan="4" class="text-center">Tidak ada data</td></tr>');
+                        return;
+                    }
+
+                    let rows = '';
+                    data.forEach((brand, i) => {
+                        rows += `
+    <tr>
+        <td class="text-center">${startNumber + i}</td>
+        <td>${brand.kode_brand}</td>
+        <td>${brand.nama_brand}</td>
+        <td class="text-center">
+            <div class="dropdown">
+                <button class="btn btn-sm btn-secondary dropdown-toggle" type="button" data-toggle="dropdown">
+                    <i class="fas fa-cog"></i>
+                </button>
+                <div class="dropdown-menu">
+                    <button class="dropdown-item btn-view" data-id="${brand.id_encrypted}">View</button>
+                    ${!brand.is_used ? `
+                                                                        <button class="dropdown-item btn-edit" data-id="${brand.id_encrypted}">Edit</button>
+                                                                        <button type="button" class="dropdown-item text-danger btn-delete" data-id="${brand.id}">Delete</button>
+                                                                    ` : ''}
+                </div>
+            </div>
+        </td>
+    </tr>`;
+                    });
+                    $('#tbody-brand').html(rows);
+                }
+
+                function renderPagination(res) {
+                    let links = '';
+                    const current = res.current_page;
+                    const last = res.last_page;
+
+                    if (res.prev_page_url) {
+                        links +=
+                            `<li class="page-item"><a class="page-link" href="#" data-page="${current - 1}">&laquo;</a></li>`;
+                    } else {
+                        links += `<li class="page-item disabled"><span class="page-link">&laquo;</span></li>`;
+                    }
+
+                    const delta = 2;
+                    let range = [];
+                    for (let p = 1; p <= last; p++) {
+                        if (p === 1 || p === last || (p >= current - delta && p <= current + delta)) {
+                            range.push(p);
+                        }
+                    }
+
+                    let prevPage = 0;
+                    range.forEach(function(p) {
+                        if (prevPage && p - prevPage > 1) {
+                            links += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+                        }
+                        links += `<li class="page-item ${p === current ? 'active' : ''}">
+                        <a class="page-link" href="#" data-page="${p}">${p}</a>
+                      </li>`;
+                        prevPage = p;
+                    });
+
+                    if (res.next_page_url) {
+                        links +=
+                            `<li class="page-item"><a class="page-link" href="#" data-page="${current + 1}">&raquo;</a></li>`;
+                    } else {
+                        links += `<li class="page-item disabled"><span class="page-link">&raquo;</span></li>`;
+                    }
+
+                    $('#pagination-brand').html(links);
+                }
+
+                $(document).on('click', '#pagination-brand a', function(e) {
+                    e.preventDefault();
+                    loadBrand($(this).data('page'));
                 });
 
-                table.buttons().container().appendTo('#dt-brand_wrapper .col-md-6:eq(0)');
+                $('#searchBrand').on('keyup', function() {
+                    clearTimeout(searchTimeout);
+                    searchTimeout = setTimeout(() => loadBrand(1), 400);
+                });
+
+                $('#perPage').on('change', function() {
+                    loadBrand(1);
+                });
+
+                $('#btnExportExcel').on('click', function() {
+                    const search = $('#searchBrand').val();
+                    window.location.href = "{{ route('masterbrand.export.excel') }}?search=" +
+                        encodeURIComponent(search);
+                });
+
+                $('#btnExportCsv').on('click', function() {
+                    const search = $('#searchBrand').val();
+                    window.location.href = "{{ route('masterbrand.export.csv') }}?search=" + encodeURIComponent(
+                        search);
+                });
+
+                $('#btnExportPdf').on('click', function() {
+                    const search = $('#searchBrand').val();
+                    window.location.href = "{{ route('masterbrand.export.pdf') }}?search=" + encodeURIComponent(
+                        search);
+                });
+
+                $('#btnPrint').on('click', function() {
+                    const search = $('#searchBrand').val();
+                    window.open("{{ route('masterbrand.print') }}?search=" + encodeURIComponent(search),
+                        '_blank');
+                });
+
+                loadBrand();
             });
         </script>
     @endpush

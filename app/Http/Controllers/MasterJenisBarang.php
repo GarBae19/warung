@@ -4,6 +4,9 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\MasterJenisBarangModel;
+use App\Exports\MasterJenisBarangExport;
+use Maatwebsite\Excel\Facades\Excel;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Exception;
 use Yajra\DataTables\Facades\DataTables;
 
@@ -12,27 +15,30 @@ class MasterJenisBarang extends Controller
     public function index(Request $request)
     {
         if ($request->ajax()) {
-            $jenises = MasterJenisBarangModel::all();
+            $search = $request->search;
 
-            return DataTables::of($jenises)
-                ->addColumn('action', function ($jenis) {
-                    $id = encrypt($jenis->id);
-                    return '<div class="dropdown">
-                                <button class="btn btn-sm btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton' . $jenis->id . '" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                                    <i class="fas fa-cog"></i>
-                                </button>
-                                <div class="dropdown-menu" aria-labelledby="dropdownMenuButton' . $id . '">
-                                    <button class="dropdown-item btn-view" data-id="' . $id . '">View</button>
-                                    <button class="dropdown-item btn-edit" data-id="' . $id . '">Edit</button>
-                                    <button type="button" class="dropdown-item text-danger btn-delete" data-id="' . $jenis->id . '">Delete</button>
-                                </div>
-                            </div>';
-                })
-                ->rawColumns(['action'])
-                ->make(true);
+            $query = MasterJenisBarangModel::query();
+
+            if ($search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('kode_jenis', 'like', "%{$search}%")
+                        ->orWhere('nama_jenis', 'like', "%{$search}%");
+                });
+            }
+
+            $jenises = $query->orderBy('id', 'desc')
+                ->paginate($request->per_page ?? 10);
+
+            $jenises->getCollection()->transform(function ($jenis) {
+                $jenis->id_encrypted = encrypt($jenis->id);
+                return $jenis;
+            });
+
+            return response()->json($jenises);
         }
-        $atribute =  'Master Jenis Barang';
-        return view('masterJenis.index', compact('atribute')); // Memanggil view home.blade.php
+
+        $atribute = 'Master Jenis Barang';
+        return view('masterJenis.index', compact('atribute'));
     }
 
     function store(Request $request)
@@ -42,6 +48,8 @@ class MasterJenisBarang extends Controller
                 'kode_jenis' => 'required|unique:master_jenis,kode_jenis',
                 'nama_jenis' => 'required'
             ]);
+
+            $validated['created_by'] = auth()->user()->name;
 
             $jenis = MasterJenisBarangModel::create($validated);
 
@@ -86,6 +94,7 @@ class MasterJenisBarang extends Controller
             $jenis->update([
                 'kode_jenis' => $request->kode_jenis,
                 'nama_jenis' => $request->nama_jenis,
+                'updated_by' => auth()->user()->name
             ]);
 
             return response()->json([
@@ -145,5 +154,56 @@ class MasterJenisBarang extends Controller
                 'kodeJenis' => $e,
             ]);
         }
+    }
+
+    public function exportExcel(Request $request)
+    {
+        return Excel::download(
+            new MasterJenisBarangExport($request->search),
+            'data_jenis_' . date('Ymd_His') . '.xlsx'
+        );
+    }
+
+    public function exportCsv(Request $request)
+    {
+        return Excel::download(
+            new MasterJenisBarangExport($request->search),
+            'data_jenis_' . date('Ymd_His') . '.csv',
+            \Maatwebsite\Excel\Excel::CSV
+        );
+    }
+
+    public function exportPdf(Request $request)
+    {
+        $jenises = $this->getFilteredData($request->search);
+
+        $pdf = Pdf::loadView('masterJenis.export_pdf', compact('jenises'))
+            ->setPaper('a4', 'portrait');
+
+        return $pdf->download('data_jenis_' . date('Ymd_His') . '.pdf');
+    }
+
+    public function printPdf(Request $request)
+    {
+        $jenises = $this->getFilteredData($request->search);
+
+        $pdf = Pdf::loadView('masterJenis.export_pdf', compact('jenises'))
+            ->setPaper('a4', 'portrait');
+
+        return $pdf->stream('data_jenis.pdf');
+    }
+
+    private function getFilteredData($search = null)
+    {
+        $query = MasterJenisBarangModel::query();
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('kode_jenis', 'like', "%{$search}%")
+                    ->orWhere('nama_jenis', 'like', "%{$search}%");
+            });
+        }
+
+        return $query->orderBy('id', 'desc')->get();
     }
 }

@@ -1,0 +1,48 @@
+@foreach ($barang3 as $barang)
+                                        <div class="col-md-3 mb-2">
+                                            <div class="card h-100 shadow-sm">
+                                                <img src="{{ asset('uploads/barang/' . $barang->headerHargaJual->barang->gambar) }}"
+                                                    class="card-img-top" style="height:120px; object-fit:cover;">
+
+                                                <div class="card-body text-center p-2 d-flex flex-column">
+                                                    @if (optional($barang->headerHargaJual->barang->stockReal)->first())
+                                                        @php
+                                                            $stok = $barang->headerHargaJual->barang->stockReal->first()
+                                                                ->qty;
+                                                            $stok = $stok / $barang->KonversiSatuan->nilai_konversi;
+                                                        @endphp
+                                                    @else
+                                                        @php
+                                                            $stok = 0;
+                                                        @endphp
+                                                    @endif
+
+
+                                                    <strong class="text-clamp mb-1">
+                                                        {{ $barang->headerHargaJual->barang->nama_barang . ' (' . ($barang->headerHargaJual->satuan->nama_satuan ?? '-') . ')' }}
+                                                    </strong>
+
+                                                    <small class="text-muted mb-2">
+                                                        Rp. {{ number_format($barang->harga_jual, 0, ',', '.') }}
+                                                    </small>
+
+                                                    {{-- <small class="text-muted mb-1">
+                                                        Stock : {{ $stok }}
+                                                    </small> --}}
+
+                                                    @if ($stok <= 0)
+                                                        <button class="btn btn-danger btn-sm">Stock Habis</button>
+                                                    @else
+                                                        <button class="btn btn-primary btn-sm pilihBarang"
+                                                            data-idBarang = "{{ encrypt($barang->headerHargaJual->id_barang) }}"
+                                                            data-nama="{{ $barang->headerHargaJual->barang->nama_barang . ' (' . ($barang->headerHargaJual->satuan->nama_satuan ?? '-') . ')' }}"
+                                                            data-harga="{{ $barang->harga_jual }}"
+                                                            data-gambar="{{ $barang->headerHargaJual->barang->gambar }}"
+                                                            data-nilaikonversi="{{ $barang->KonversiSatuan->nilai_konversi }}"
+                                                            data-idsatuan="{{ $barang->KonversiSatuan->id_satuan_konversi ? $barang->KonversiSatuan->id_satuan_konversi : $barang->KonversiSatuan->id_satuan_asal }}">Pilih</button>
+                                                    @endif
+                                                </div>
+                                            </div>
+
+                                        </div>
+                                    @endforeach

@@ -16,8 +16,22 @@
         <section class="content">
             <div class="card">
                 <div class="card-header d-flex align-items-center justify-content-between">
-                    <h3 class="card-title mb-0">Master Stock</h3>
-                    <div class="ml-auto">
+                    <h3 class="card-title mb-0">Stock Opname</h3>
+                    <div class="ml-auto d-flex">
+                        <div class="btn-group mr-2">
+                            <button type="button" class="btn btn-success btn-sm" id="btnExportExcel">
+                                <i class="fas fa-file-excel"></i> Excel
+                            </button>
+                            <button type="button" class="btn btn-info btn-sm" id="btnExportCsv">
+                                <i class="fas fa-file-csv"></i> CSV
+                            </button>
+                            <button type="button" class="btn btn-danger btn-sm" id="btnExportPdf">
+                                <i class="fas fa-file-pdf"></i> PDF
+                            </button>
+                            <button type="button" class="btn btn-secondary btn-sm" id="btnPrint">
+                                <i class="fas fa-print"></i> Print
+                            </button>
+                        </div>
                         <a href="{{ route('stockOpname.create') }}" class="btn btn-primary">
                             <i class="fas fa-plus"></i> Tambah Data
                         </a>
@@ -26,7 +40,22 @@
 
                 <!-- /.card-header -->
                 <div class="card-body">
-                    <table id="dt-stock" class="table table-bordered table-striped">
+                    <div class="d-flex justify-content-between mb-2">
+                        <div class="form-inline">
+                            <input type="text" id="searchStock" class="form-control form-control-sm"
+                                placeholder="Cari...">
+                        </div>
+                        <div>
+                            <select id="perPage" class="form-control form-control-sm">
+                                <option value="10">10</option>
+                                <option value="25">25</option>
+                                <option value="50">50</option>
+                                <option value="100">100</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <table class="table table-bordered table-striped" id="tabel-stock">
                         <thead>
                             <tr>
                                 <th>#</th>
@@ -37,7 +66,17 @@
                                 <th>Action</th>
                             </tr>
                         </thead>
+                        <tbody id="tbody-stock">
+                            <!-- diisi via JS -->
+                        </tbody>
                     </table>
+
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div id="infoStock" class="text-muted small"></div>
+                        <nav>
+                            <ul class="pagination pagination-sm mb-0" id="pagination-stock"></ul>
+                        </nav>
+                    </div>
                 </div>
                 <!-- /.card-body -->
             </div>
@@ -130,7 +169,7 @@
                     const id = $(this).data('id');
                     // alert(id);
                     $.ajax({
-                        url: `/masterbarang/${id}`, // langsung aja
+                        url: `masterbarang/${id}`, // langsung aja
                         method: 'get',
                         success: function(res) {
                             if (res.status == 'success') {
@@ -178,7 +217,7 @@
                     // alert(id);
                     $('#idBarang').val(id);
                     $.ajax({
-                        url: `/masterbarang/${id}`, // langsung aja
+                        url: `masterbarang/${id}`, // langsung aja
                         method: 'get',
                         success: function(res) {
                             if (res.status == 'success') {
@@ -245,8 +284,7 @@
                                 success: function(res) {
                                     if (res.status === 'success') {
                                         Swal.fire('Berhasil', res.message, 'success');
-                                        $('#dt-stock').DataTable().ajax.reload(null,
-                                            false);
+                                        loadStock(); // reload halaman saat ini
                                     } else {
                                         Swal.fire('Gagal', res.message, 'error');
                                     }
@@ -274,16 +312,15 @@
                             $.ajax({
                                 url: `{{ route('stockOpname.approve', ':id') }}`.replace(':id',
                                     id),
-                                type: 'POST',
+                                type: 'GET',
                                 data: {
-                                    _method: 'POST',
+                                    _method: 'GET',
                                     _token: $('meta[name="csrf-token"]').attr('content')
                                 },
                                 success: function(res) {
                                     if (res.status === 'success') {
                                         Swal.fire('Berhasil', res.message, 'success');
-                                        $('#dt-stock').DataTable().ajax.reload(null,
-                                            false);
+                                        loadStock(); // reload halaman saat ini
                                     } else {
                                         Swal.fire('Gagal', res.message, 'error');
                                     }
@@ -297,118 +334,164 @@
                 });
 
 
-                var table = $("#dt-stock").DataTable({
-                    dom: 'Bfrtip', // <<< penting!
-                    responsive: true,
-                    searching: true,
-                    ordering: true,
-                    info: true,
-                    lengthChange: false,
-                    autoWidth: false,
-                    processing: true, // indikator loading
-                    serverSide: true, // aktifkan server-side
-                    buttons: [{
-                            extend: 'csv',
-                            filename: 'data_stock',
-                            exportOptions: {
-                                columns: ':not(.not-export)'
-                            }
-                        },
-                        {
-                            extend: 'excel',
-                            filename: 'data_stock',
-                            exportOptions: {
-                                columns: ':not(.not-export)'
-                            }
-                        },
-                        {
-                            extend: 'pdf',
-                            filename: 'data_stock',
-                            exportOptions: {
-                                columns: ':not(.not-export)'
-                            },
-                            customize: function(doc) {
-                                var body = doc.content[1].table.body;
+                let currentPage = 1;
+                let searchTimeout = null;
 
-                                // Nomor urut + teks center
-                                for (var i = 1; i < body.length; i++) {
-                                    if (typeof body[i][0] === 'object') {
-                                        body[i][0].text = (i).toString();
-                                    } else {
-                                        body[i][0] = {
-                                            text: (i).toString()
-                                        };
-                                    }
+                function loadStock(page = 1) {
+                    currentPage = page;
+                    const search = $('#searchStock').val();
+                    const perPage = $('#perPage').val();
 
-                                    body[i][0].alignment = 'center';
-                                }
-
-                                body[0][0].alignment = 'center'; // Header nomor urut center
-
-                                // Atur lebar kolom otomatis
-                                doc.content[1].table.widths = Array(body[0].length).fill(
-                                    '*');
-
-                                // Tambahkan garis pembatas
-                                doc.content[1].layout = {
-                                    hLineWidth: function() {
-                                        return 0.5;
-                                    },
-                                    vLineWidth: function() {
-                                        return 0.5;
-                                    },
-                                    hLineColor: function() {
-                                        return '#aaa';
-                                    },
-                                    vLineColor: function() {
-                                        return '#aaa';
-                                    },
-                                };
-                            }
+                    $.ajax({
+                        url: "{{ route('stockOpname.index') }}",
+                        method: 'get',
+                        data: {
+                            page,
+                            search,
+                            per_page: perPage
                         },
-                        {
-                            extend: 'print',
-                            exportOptions: {
-                                columns: ':not(.not-export)'
-                            }
+                        beforeSend: function() {
+                            $('#tbody-stock').html(
+                                '<tr><td colspan="6" class="text-center">Memuat data...</td></tr>');
                         },
-                    ],
-                    ajax: "{{ route('stockOpname.index') }}",
-                    columns: [{
-                            data: null,
-                            name: 'no',
-                            render: function(data, type, row, meta) {
-                                return meta.row + meta.settings._iDisplayStart + 1;
-                            },
-                            className: 'text-center',
+                        success: function(res) {
+                            renderTable(res.data, res.from);
+                            renderPagination(res);
+                            $('#infoStock').text(
+                                `Menampilkan ${res.from ?? 0} - ${res.to ?? 0} dari ${res.total} data`);
                         },
-                        {
-                            data: 'kode_stock_opname',
-                            name: 'kode_stock_opname'
-                        },
-                        {
-                            data: 'periode',
-                            name: 'periode'
-                        },
-                        {
-                            data: 'approve_by',
-                            name: 'approve_by'
-                        },
-                        {
-                            data: 'approve_at',
-                            name: 'approve_at'
-                        },
-                        {
-                            data: 'action',
-                            name: 'action',
-                            orderable: false,
-                            searchable: false,
-                            className: 'text-center not-export'
+                        error: function() {
+                            $('#tbody-stock').html(
+                                '<tr><td colspan="6" class="text-center text-danger">Gagal memuat data</td></tr>'
+                            );
                         }
-                    ],
+                    });
+                }
+
+                function renderTable(data, startNumber) {
+                    if (!data.length) {
+                        $('#tbody-stock').html('<tr><td colspan="6" class="text-center">Tidak ada data</td></tr>');
+                        return;
+                    }
+
+                    let rows = '';
+                    data.forEach((stock, i) => {
+                        let buttons = `<a href="{{ url('stockOpname') }}/${stock.id_encrypted}" class="dropdown-item text-info">
+                                <i class="fas fa-eye"></i> Show
+                           </a>`;
+
+                        if (!stock.approve_by) {
+                            buttons += `
+                    <button type="button" class="dropdown-item text-success btn-approve" data-id="${stock.kode_encrypted}">
+                        <i class="fas fa-check"></i> Approve
+                    </button>
+                    <button type="button" class="dropdown-item text-danger btn-delete" data-id="${stock.kode_encrypted}">
+                        <i class="fas fa-trash"></i> Delete
+                    </button>`;
+                        }
+
+                        rows += `
+    <tr>
+        <td class="text-center">${startNumber + i}</td>
+        <td>${stock.kode_stock_opname}</td>
+        <td>${stock.periode}</td>
+        <td>${stock.approve_by ?? '-'}</td>
+        <td>${stock.approve_at ?? '-'}</td>
+        <td class="text-center">
+            <div class="dropdown">
+                <button class="btn btn-sm btn-secondary dropdown-toggle" type="button" data-toggle="dropdown">
+                    <i class="fas fa-cog"></i>
+                </button>
+                <div class="dropdown-menu">
+                    ${buttons}
+                </div>
+            </div>
+        </td>
+    </tr>`;
+                    });
+                    $('#tbody-stock').html(rows);
+                }
+
+                function renderPagination(res) {
+                    let links = '';
+                    const current = res.current_page;
+                    const last = res.last_page;
+
+                    if (res.prev_page_url) {
+                        links +=
+                            `<li class="page-item"><a class="page-link" href="#" data-page="${current - 1}">&laquo;</a></li>`;
+                    } else {
+                        links += `<li class="page-item disabled"><span class="page-link">&laquo;</span></li>`;
+                    }
+
+                    const delta = 2;
+                    let range = [];
+                    for (let p = 1; p <= last; p++) {
+                        if (p === 1 || p === last || (p >= current - delta && p <= current + delta)) {
+                            range.push(p);
+                        }
+                    }
+
+                    let prevPage = 0;
+                    range.forEach(function(p) {
+                        if (prevPage && p - prevPage > 1) {
+                            links += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+                        }
+                        links += `<li class="page-item ${p === current ? 'active' : ''}">
+                        <a class="page-link" href="#" data-page="${p}">${p}</a>
+                      </li>`;
+                        prevPage = p;
+                    });
+
+                    if (res.next_page_url) {
+                        links +=
+                            `<li class="page-item"><a class="page-link" href="#" data-page="${current + 1}">&raquo;</a></li>`;
+                    } else {
+                        links += `<li class="page-item disabled"><span class="page-link">&raquo;</span></li>`;
+                    }
+
+                    $('#pagination-stock').html(links);
+                }
+
+                $(document).on('click', '#pagination-stock a', function(e) {
+                    e.preventDefault();
+                    loadStock($(this).data('page'));
                 });
 
-                table.buttons().container().appendTo('#dt-stock_wrapper .col-md-6:eq(0)');
+                $('#searchStock').on('keyup', function() {
+                    clearTimeout(searchTimeout);
+                    searchTimeout = setTimeout(() => loadStock(1), 400);
+                });
+
+                $('#perPage').on('change', function() {
+                    loadStock(1);
+                });
+
+                $('#btnExportExcel').on('click', function() {
+                    const search = $('#searchStock').val();
+                    window.location.href = "{{ route('stockOpname.export.excel') }}?search=" +
+                        encodeURIComponent(search);
+                });
+
+                $('#btnExportCsv').on('click', function() {
+                    const search = $('#searchStock').val();
+                    window.location.href = "{{ route('stockOpname.export.csv') }}?search=" + encodeURIComponent(
+                        search);
+                });
+
+                $('#btnExportPdf').on('click', function() {
+                    const search = $('#searchStock').val();
+                    window.location.href = "{{ route('stockOpname.export.pdf') }}?search=" + encodeURIComponent(
+                        search);
+                });
+
+                $('#btnPrint').on('click', function() {
+                    const search = $('#searchStock').val();
+                    window.open("{{ route('stockOpname.print') }}?search=" + encodeURIComponent(search),
+                        '_blank');
+                });
+
+                loadStock();
             });
         </script>
     @endpush

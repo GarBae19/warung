@@ -134,65 +134,28 @@
                 <li class="nav-item dropdown">
                     <a class="nav-link" data-toggle="dropdown" href="#">
                         <i class="far fa-user-circle mr-2"></i>
-                        Alexander
+                        {{ Auth::user()->name }}
                         {{-- <i class="far fa-comments"></i>
                         <span class="badge badge-danger navbar-badge">3</span> --}}
                     </a>
-                    <div class="dropdown-menu dropdown-menu-lg dropdown-menu-right">
-                        <a href="#" class="dropdown-item">
-                            <!-- Message Start -->
-                            <div class="media">
-                                <img src="dist/img/user1-128x128.jpg" alt="User Avatar"
-                                    class="img-size-50 mr-3 img-circle">
-                                <div class="media-body">
-                                    <h3 class="dropdown-item-title">
-                                        Brad Diesel
-                                        <span class="float-right text-sm text-danger"><i class="fas fa-star"></i></span>
-                                    </h3>
-                                    <p class="text-sm">Call me whenever you can...</p>
-                                    <p class="text-sm text-muted"><i class="far fa-clock mr-1"></i> 4 Hours Ago</p>
-                                </div>
-                            </div>
-                            <!-- Message End -->
-                        </a>
+                    <div class="dropdown-menu dropdown-menu-right shadow-sm">
+
+                        <div class="dropdown-header text-center font-weight-bold">
+                            Akun
+                        </div>
+
                         <div class="dropdown-divider"></div>
-                        <a href="#" class="dropdown-item">
-                            <!-- Message Start -->
-                            <div class="media">
-                                <img src="dist/img/user8-128x128.jpg" alt="User Avatar"
-                                    class="img-size-50 img-circle mr-3">
-                                <div class="media-body">
-                                    <h3 class="dropdown-item-title">
-                                        John Pierce
-                                        <span class="float-right text-sm text-muted"><i class="fas fa-star"></i></span>
-                                    </h3>
-                                    <p class="text-sm">I got your message bro</p>
-                                    <p class="text-sm text-muted"><i class="far fa-clock mr-1"></i> 4 Hours Ago</p>
-                                </div>
-                            </div>
-                            <!-- Message End -->
-                        </a>
-                        <div class="dropdown-divider"></div>
-                        <a href="#" class="dropdown-item">
-                            <!-- Message Start -->
-                            <div class="media">
-                                <img src="dist/img/user3-128x128.jpg" alt="User Avatar"
-                                    class="img-size-50 img-circle mr-3">
-                                <div class="media-body">
-                                    <h3 class="dropdown-item-title">
-                                        Nora Silvester
-                                        <span class="float-right text-sm text-warning"><i
-                                                class="fas fa-star"></i></span>
-                                    </h3>
-                                    <p class="text-sm">The subject goes here</p>
-                                    <p class="text-sm text-muted"><i class="far fa-clock mr-1"></i> 4 Hours Ago</p>
-                                </div>
-                            </div>
-                            <!-- Message End -->
-                        </a>
-                        <div class="dropdown-divider"></div>
-                        <a href="#" class="dropdown-item dropdown-footer">See All Messages</a>
+
+                        <form action="{{ route('logout') }}" method="POST" class="m-0">
+                            @csrf
+                            <button type="submit" class="dropdown-item text-danger">
+                                <i class="fas fa-sign-out-alt mr-2"></i>
+                                Logout
+                            </button>
+                        </form>
+
                     </div>
+
                 </li>
                 <li class="nav-item">
                     <a class="nav-link" data-widget="fullscreen" href="#" role="button">
@@ -292,10 +255,54 @@
     <!-- Scan Barcode -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
 
+    <script src="{{ asset('plugins/list/list.min.js') }}"></script>
 
     <script>
         window.console && console.log && (console.log = function() {}); // Menonaktifkan log ke console
     </script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+
+            document.querySelectorAll('.btn').forEach(function(link) {
+
+                // BLOCK klik kanan
+                link.addEventListener('contextmenu', function(e) {
+                    e.preventDefault();
+                    return false;
+                });
+
+                // BLOCK middle click
+                link.addEventListener('auxclick', function(e) {
+                    e.preventDefault();
+                    return false;
+                });
+
+                // BLOCK ctrl / cmd / shift click
+                link.addEventListener('click', function(e) {
+                    if (e.ctrlKey || e.metaKey || e.shiftKey || e.button === 1) {
+                        e.preventDefault();
+                        return false;
+                    }
+                });
+
+            });
+
+        });
+
+        function formatInputRibuan(el) {
+            let value = el.value.replace(/\D/g, ''); // ambil angka saja
+            el.value = value ? value.replace(/\B(?=(\d{3})+(?!\d))/g, ".") : '';
+        }
+
+        function formatRibuan(angka) {
+            if (!angka) return '';
+            return angka.toString().replace(/\D/g, '')
+                .replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+        }
+    </script>
+
+
 
     @stack('scripts')
 </body>

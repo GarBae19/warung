@@ -8,7 +8,21 @@
             <div class="card">
                 <div class="card-header d-flex align-items-center justify-content-between">
                     <h3 class="card-title mb-0">Master Jenis</h3>
-                    <div class="ml-auto">
+                    <div class="ml-auto d-flex">
+                        <div class="btn-group mr-2">
+                            <button type="button" class="btn btn-success btn-sm" id="btnExportExcel">
+                                <i class="fas fa-file-excel"></i> Excel
+                            </button>
+                            <button type="button" class="btn btn-info btn-sm" id="btnExportCsv">
+                                <i class="fas fa-file-csv"></i> CSV
+                            </button>
+                            <button type="button" class="btn btn-danger btn-sm" id="btnExportPdf">
+                                <i class="fas fa-file-pdf"></i> PDF
+                            </button>
+                            <button type="button" class="btn btn-secondary btn-sm" id="btnPrint">
+                                <i class="fas fa-print"></i> Print
+                            </button>
+                        </div>
                         <button id="tambahData" type="button" class="btn btn-primary btn-sm" data-toggle="modal"
                             data-target="#modal-tambah">
                             <i class="fas fa-plus"></i> Tambah Data
@@ -18,7 +32,22 @@
 
                 <!-- /.card-header -->
                 <div class="card-body">
-                    <table id="dt-jenis" class="table table-bordered table-striped">
+                    <div class="d-flex justify-content-between mb-2">
+                        <div class="form-inline">
+                            <input type="text" id="searchJenis" class="form-control form-control-sm"
+                                placeholder="Cari...">
+                        </div>
+                        <div>
+                            <select id="perPage" class="form-control form-control-sm">
+                                <option value="10">10</option>
+                                <option value="25">25</option>
+                                <option value="50">50</option>
+                                <option value="100">100</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <table class="table table-bordered table-striped" id="tabel-jenis">
                         <thead>
                             <tr>
                                 <th>#</th>
@@ -27,7 +56,17 @@
                                 <th>Action</th>
                             </tr>
                         </thead>
+                        <tbody id="tbody-jenis">
+                            <!-- diisi via JS -->
+                        </tbody>
                     </table>
+
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div id="infoJenis" class="text-muted small"></div>
+                        <nav>
+                            <ul class="pagination pagination-sm mb-0" id="pagination-jenis"></ul>
+                        </nav>
+                    </div>
                 </div>
                 <!-- /.card-body -->
             </div>
@@ -112,7 +151,7 @@
                     const id = $(this).data('id');
                     // alert(id);
                     $.ajax({
-                        url: `/jenisBarang/${id}`, // langsung aja
+                        url: `jenisBarang/${id}`, // langsung aja
                         method: 'get',
                         success: function(res) {
                             if (res.status == 'success') {
@@ -147,7 +186,7 @@
                     // alert(id);
                     $('#idJenis').val(id);
                     $.ajax({
-                        url: `/jenisBarang/${id}`, // langsung aja
+                        url: `jenisBarang/${id}`, // langsung aja
                         method: 'get',
                         success: function(res) {
                             if (res.status == 'success') {
@@ -208,7 +247,7 @@
                     }
 
                     Swal.fire({
-                        title: mode === 'create' ? 'Simpan Satuan?' : 'Update Satuan?',
+                        title: mode === 'create' ? 'Simpan Jenis?' : 'Update Jenis?',
                         text: 'Pastikan data sudah benar.',
                         icon: 'question',
                         showCancelButton: true,
@@ -219,12 +258,12 @@
                         if (result.isConfirmed) {
                             // Di sini kamu bisa kirim data ke server pakai AJAX
                             const kodeJenis = $('#kode_jenis').val();
-                            const namaSatuan = $('#nama_jenis').val();
+                            const namaJenis = $('#nama_jenis').val();
 
-                            if (!kodeJenis && !namaSatuan) {
+                            if (!kodeJenis || !namaJenis) {
                                 Swal.fire({
                                     title: 'Gagal!',
-                                    text: 'Satuan gagal disimpan.',
+                                    text: 'Jenis Barang gagal disimpan. Pastikan semua terisi.',
                                     icon: 'error',
                                     confirmButtonText: 'OK'
                                 });
@@ -237,7 +276,7 @@
                                         '&_method=PUT' : ''),
                                     // data: {
                                     //     kode_jenis: kodeJenis,
-                                    //     nama_jenis: namaSatuan
+                                    //     nama_jenis: namaJenis
                                     // },
                                     success: function(res) {
                                         if (res.status == 'success') {
@@ -246,15 +285,13 @@
 
                                             Swal.fire({
                                                 title: 'Berhasil!',
-                                                text: 'Satuan berhasil disimpan.',
+                                                text: 'Jenis berhasil disimpan.',
                                                 icon: 'success',
                                                 confirmButtonText: 'OK'
                                             });
 
                                             // Kalau pakai DataTables, refresh:
-                                            $('#dt-jenis').DataTable().ajax
-                                                .reload(null,
-                                                    false);
+                                            loadJenis();
                                         } else {
                                             Swal.fire({
                                                 title: 'Gagal!',
@@ -282,7 +319,7 @@
                     const id = $(this).data('id');
 
                     Swal.fire({
-                        title: 'Hapus Satuan?',
+                        title: 'Hapus Jenis?',
                         text: 'Data tidak bisa dikembalikan setelah dihapus.',
                         icon: 'warning',
                         showCancelButton: true,
@@ -291,7 +328,7 @@
                     }).then((result) => {
                         if (result.isConfirmed) {
                             $.ajax({
-                                url: `/jenisBarang/${id}`,
+                                url: `jenisBarang/${id}`,
                                 type: 'POST',
                                 data: {
                                     _method: 'DELETE',
@@ -300,8 +337,7 @@
                                 success: function(res) {
                                     if (res.status === 'success') {
                                         Swal.fire('Berhasil', res.message, 'success');
-                                        $('#dt-jenis').DataTable().ajax.reload(null,
-                                            false);
+                                        loadJenis();
                                     } else {
                                         Swal.fire('Gagal', res.message, 'error');
                                     }
@@ -315,110 +351,155 @@
                 });
 
 
-                var table = $("#dt-jenis").DataTable({
-                    dom: 'Bfrtip', // <<< penting!
-                    responsive: true,
-                    searching: true,
-                    ordering: true,
-                    info: true,
-                    lengthChange: false,
-                    autoWidth: false,
-                    processing: true, // indikator loading
-                    serverSide: true, // aktifkan server-side
-                    buttons: [{
-                            extend: 'csv',
-                            filename: 'data_jenis',
-                            exportOptions: {
-                                columns: ':not(.not-export)'
-                            }
-                        },
-                        {
-                            extend: 'excel',
-                            filename: 'data_jenis',
-                            exportOptions: {
-                                columns: ':not(.not-export)'
-                            }
-                        },
-                        {
-                            extend: 'pdf',
-                            filename: 'data_jenis',
-                            exportOptions: {
-                                columns: ':not(.not-export)'
-                            },
-                            customize: function(doc) {
-                                var body = doc.content[1].table.body;
+                let currentPage = 1;
+                let searchTimeout = null;
 
-                                // Nomor urut + teks center
-                                for (var i = 1; i < body.length; i++) {
-                                    if (typeof body[i][0] === 'object') {
-                                        body[i][0].text = (i).toString();
-                                    } else {
-                                        body[i][0] = {
-                                            text: (i).toString()
-                                        };
-                                    }
+                function loadJenis(page = 1) {
+                    currentPage = page;
+                    const search = $('#searchJenis').val();
+                    const perPage = $('#perPage').val();
 
-                                    body[i][0].alignment = 'center';
-                                }
-
-                                body[0][0].alignment = 'center'; // Header nomor urut center
-
-                                // Atur lebar kolom otomatis
-                                doc.content[1].table.widths = Array(body[0].length).fill(
-                                    '*');
-
-                                // Tambahkan garis pembatas
-                                doc.content[1].layout = {
-                                    hLineWidth: function() {
-                                        return 0.5;
-                                    },
-                                    vLineWidth: function() {
-                                        return 0.5;
-                                    },
-                                    hLineColor: function() {
-                                        return '#aaa';
-                                    },
-                                    vLineColor: function() {
-                                        return '#aaa';
-                                    },
-                                };
-                            }
+                    $.ajax({
+                        url: "{{ url('/jenisBarang') }}",
+                        method: 'get',
+                        data: {
+                            page,
+                            search,
+                            per_page: perPage
                         },
-                        {
-                            extend: 'print',
-                            exportOptions: {
-                                columns: ':not(.not-export)'
-                            }
+                        beforeSend: function() {
+                            $('#tbody-jenis').html(
+                                '<tr><td colspan="4" class="text-center">Memuat data...</td></tr>');
                         },
-                    ],
-                    ajax: "{{ url('/jenisBarang') }}",
-                    columns: [{
-                            data: null,
-                            name: 'no',
-                            render: function(data, type, row, meta) {
-                                return meta.row + meta.settings._iDisplayStart + 1;
-                            },
-                            className: 'text-center',
+                        success: function(res) {
+                            renderTable(res.data, res.from);
+                            renderPagination(res);
+                            $('#infoJenis').text(
+                                `Menampilkan ${res.from ?? 0} - ${res.to ?? 0} dari ${res.total} data`);
                         },
-                        {
-                            data: 'kode_jenis',
-                            name: 'kode_jenis'
-                        },
-                        {
-                            data: 'nama_jenis',
-                            name: 'nama_jenis'
-                        },
-                        {
-                            data: 'action',
-                            name: 'action',
-                            orderable: false,
-                            searchable: false,
-                            className: 'text-center not-export'
+                        error: function() {
+                            $('#tbody-jenis').html(
+                                '<tr><td colspan="4" class="text-center text-danger">Gagal memuat data</td></tr>'
+                            );
                         }
-                    ],
+                    });
+                }
+
+                function renderTable(data, startNumber) {
+                    if (!data.length) {
+                        $('#tbody-jenis').html('<tr><td colspan="4" class="text-center">Tidak ada data</td></tr>');
+                        return;
+                    }
+
+                    let rows = '';
+                    data.forEach((jenis, i) => {
+                        rows += `
+            <tr>
+                <td class="text-center">${startNumber + i}</td>
+                <td>${jenis.kode_jenis}</td>
+                <td>${jenis.nama_jenis}</td>
+                <td class="text-center">
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-secondary dropdown-toggle" type="button" data-toggle="dropdown">
+                            <i class="fas fa-cog"></i>
+                        </button>
+                        <div class="dropdown-menu">
+                            <button class="dropdown-item btn-view" data-id="${jenis.id_encrypted}">View</button>
+                            ${!jenis.is_used ? `
+                                                                                                                <button class="dropdown-item btn-edit" data-id="${jenis.id_encrypted}">Edit</button>
+                                                                                                                <button type="button" class="dropdown-item text-danger btn-delete" data-id="${jenis.id}">Delete</button>
+                                                                                                            ` : ''}
+                        </div>
+                    </div>
+                </td>
+            </tr>`;
+                    });
+                    $('#tbody-jenis').html(rows);
+                }
+
+                function renderPagination(res) {
+                    let links = '';
+                    const current = res.current_page;
+                    const last = res.last_page;
+
+                    if (res.prev_page_url) {
+                        links +=
+                            `<li class="page-item"><a class="page-link" href="#" data-page="${current - 1}">&laquo;</a></li>`;
+                    } else {
+                        links += `<li class="page-item disabled"><span class="page-link">&laquo;</span></li>`;
+                    }
+
+                    const delta = 2;
+                    let range = [];
+                    for (let p = 1; p <= last; p++) {
+                        if (p === 1 || p === last || (p >= current - delta && p <= current + delta)) {
+                            range.push(p);
+                        }
+                    }
+
+                    let prevPage = 0;
+                    range.forEach(function(p) {
+                        if (prevPage && p - prevPage > 1) {
+                            links += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+                        }
+                        links += `<li class="page-item ${p === current ? 'active' : ''}">
+                        <a class="page-link" href="#" data-page="${p}">${p}</a>
+                      </li>`;
+                        prevPage = p;
+                    });
+
+                    if (res.next_page_url) {
+                        links +=
+                            `<li class="page-item"><a class="page-link" href="#" data-page="${current + 1}">&raquo;</a></li>`;
+                    } else {
+                        links += `<li class="page-item disabled"><span class="page-link">&raquo;</span></li>`;
+                    }
+
+                    $('#pagination-jenis').html(links);
+                }
+
+                $(document).on('click', '#pagination-jenis a', function(e) {
+                    e.preventDefault();
+                    loadJenis($(this).data('page'));
                 });
 
-                table.buttons().container().appendTo('#dt-jenis_wrapper .col-md-6:eq(0)');
+                $('#searchJenis').on('keyup', function() {
+                    clearTimeout(searchTimeout);
+                    searchTimeout = setTimeout(() => loadJenis(1), 400);
+                });
+
+                $('#perPage').on('change', function() {
+                    loadJenis(1);
+                });
+
+                $('#btnExportExcel').on('click', function() {
+                    const search = $('#searchJenis').val();
+                    window.location.href = "{{ route('jenisBarang.export.excel') }}?search=" +
+                        encodeURIComponent(search);
+                });
+
+                $('#btnExportCsv').on('click', function() {
+                    const search = $('#searchJenis').val();
+                    window.location.href = "{{ route('jenisBarang.export.csv') }}?search=" + encodeURIComponent(
+                        search);
+                });
+
+                $('#btnExportPdf').on('click', function() {
+                    const search = $('#searchJenis').val();
+                    window.location.href = "{{ route('jenisBarang.export.pdf') }}?search=" + encodeURIComponent(
+                        search);
+                });
+
+                $('#btnPrint').on('click', function() {
+                    const search = $('#searchJenis').val();
+                    window.open("{{ route('jenisBarang.print') }}?search=" + encodeURIComponent(search),
+                        '_blank');
+                });
+
+
+
+                loadJenis();
+
             });
         </script>
     @endpush

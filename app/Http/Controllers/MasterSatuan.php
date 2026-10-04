@@ -5,6 +5,9 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\MasterSatuanModel;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use App\Exports\MasterSatuanExport;
+use Maatwebsite\Excel\Facades\Excel;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Exception;
 use Yajra\DataTables\Facades\DataTables;
 
@@ -13,27 +16,31 @@ class MasterSatuan extends Controller
     public function index(Request $request)
     {
         if ($request->ajax()) {
-            $satuans = MasterSatuanModel::all();
+            $search = $request->search;
 
-            return DataTables::of($satuans)
-                ->addColumn('action', function ($satuan) {
-                    $id = encrypt($satuan->id);
-                    return '<div class="dropdown">
-                                <button class="btn btn-sm btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton' . $satuan->id . '" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                                    <i class="fas fa-cog"></i>
-                                </button>
-                                <div class="dropdown-menu" aria-labelledby="dropdownMenuButton' . $id . '">
-                                    <button class="dropdown-item btn-view" data-id="' . $id . '">View</button>
-                                    <button class="dropdown-item btn-edit" data-id="' . $id . '">Edit</button>
-                                    <button type="button" class="dropdown-item text-danger btn-delete" data-id="' . $satuan->id . '">Delete</button>
-                                </div>
-                            </div>';
-                })
-                ->rawColumns(['action'])
-                ->make(true);
+            $query = MasterSatuanModel::query();
+
+            if ($search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('kode_satuan', 'like', "%{$search}%")
+                        ->orWhere('nama_satuan', 'like', "%{$search}%")
+                        ->orWhere('keterangan', 'like', "%{$search}%");
+                });
+            }
+
+            $satuans = $query->orderBy('id', 'desc')
+                ->paginate($request->per_page ?? 10);
+
+            $satuans->getCollection()->transform(function ($satuan) {
+                $satuan->id_encrypted = encrypt($satuan->id);
+                return $satuan;
+            });
+
+            return response()->json($satuans);
         }
-        $atribute =  'Master Satuan';
-        return view('masterSatuan.index', compact('atribute')); // Memanggil view home.blade.php
+
+        $atribute = 'Master Satuan';
+        return view('masterSatuan.index', compact('atribute'));
     }
 
     function store(Request $request)
@@ -41,8 +48,11 @@ class MasterSatuan extends Controller
         try {
             $validated = $request->validate([
                 'kode_satuan' => 'required|unique:master_satuan,kode_satuan',
-                'nama_satuan' => 'required'
+                'nama_satuan' => 'required',
+                'keterangan' => 'nullable'
             ]);
+
+            $validated['created_by'] = auth()->user()->name;
 
             $satuan = MasterSatuanModel::create($validated);
 
@@ -85,13 +95,33 @@ class MasterSatuan extends Controller
                     $err[] = 'Baris ' . $row . ' dilewati karena ada kolom yang kosong.';
                     if ($row >= 2) break;
                 } else {
+                    // MasterSatuanModel::updateOrCreate(
+                    //     ['kode_satuan' => $kode_satuan],
+                    //     [
+                    //         'nama_satuan' => $nama_satuan,
+                    //         'keterangan' => $keterangan,
+                    //         'created_by' => auth()->user()->name,
+                    //         'updated_by' => auth()->user()->name
+                    //     ]
+                    // );
+                    $user = auth()->user();
+
                     MasterSatuanModel::updateOrCreate(
                         ['kode_satuan' => $kode_satuan],
                         [
                             'nama_satuan' => $nama_satuan,
-                            'keterangan' => $keterangan
+                            'keterangan'  => $keterangan,
+                            'updated_by'  => $user ? $user->name : 'system',
                         ]
                     );
+
+                    // Set created_by hanya jika data baru dibuat
+                    $model = MasterSatuanModel::where('kode_satuan', $kode_satuan)->first();
+
+                    if ($model->wasRecentlyCreated) {
+                        $model->created_by = $user ? $user->name : 'system';
+                        $model->save();
+                    }
                 }
             }
             if (count($err) > 0) {
@@ -135,6 +165,7 @@ class MasterSatuan extends Controller
     {
         $request->validate([
             'nama_satuan' => 'required|unique:master_satuan,nama_satuan',
+            'keterangan' => 'nullable'
         ]);
 
         try {
@@ -143,6 +174,8 @@ class MasterSatuan extends Controller
             $satuan->update([
                 'kode_satuan' => $request->kode_satuan,
                 'nama_satuan' => $request->nama_satuan,
+                'keterangan' => $request->keterangan,
+                'updated_by' => auth()->user()->name
             ]);
 
             return response()->json([
@@ -206,5 +239,42 @@ class MasterSatuan extends Controller
                 'kodeSatuan' => $e,
             ]);
         }
+    }
+
+    public function exportExcel(Request $request)
+    {
+        return Excel::download(
+            new MasterSatuanExport($request->search),
+            'data_satuan_' . date('Ymd_His') . '.xlsx'
+        );
+    }
+
+    public function exportCsv(Request $request)
+    {
+        return Excel::download(
+            new MasterSatuanExport($request->search),
+            'data_satuan_' . date('Ymd_His') . '.csv',
+            \Maatwebsite\Excel\Excel::CSV
+        );
+    }
+
+    public function exportPdf(Request $request)
+    {
+        $satuans = $this->getFilteredData($request->search);
+
+        $pdf = Pdf::loadView('masterSatuan.export_pdf', compact('satuans'))
+            ->setPaper('a4', 'portrait');
+
+        return $pdf->download('data_satuan_' . date('Ymd_His') . '.pdf');
+    }
+
+    public function printPdf(Request $request)
+    {
+        $satuans = $this->getFilteredData($request->search);
+
+        $pdf = Pdf::loadView('masterSatuan.export_pdf', compact('satuans'))
+            ->setPaper('a4', 'portrait');
+
+        return $pdf->stream('data_satuan.pdf');
     }
 }

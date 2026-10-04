@@ -39,6 +39,14 @@
                                 </div>
                             </div>
                         </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="id_gudang">Gudang</label>
+                                    <select id="id_gudang" name="id_gudang" class="form-control"></select>
+                                </div>
+                            </div>
+                        </div>
 
                         <div class="d-grid gap-2 mt-3" id="button_submit_header">
                             <a href="{{ route('stockOpname.index') }}" class="btn btn-secondary">Batal</a>
@@ -46,18 +54,41 @@
                         </div>
                     </form>
 
-                    <table id="table-stockOpname-detail" class="table table-bordered"
-                        style="display:none; margin-top: 10px; width:100%">
-                        <thead>
-                            <tr>
-                                <th>Kode Barang</th>
-                                <th>Nama Barang</th>
-                                <th>Qty Stock</th>
-                                <th>Qty Real</th>
-                                <th>Aksi</th>
-                            </tr>
-                        </thead>
-                    </table>
+                    <div id="detail-section" style="display:none; margin-top: 10px;">
+                        <div class="d-flex justify-content-between mb-2">
+                            <input type="text" id="searchDetail" class="form-control form-control-sm w-25"
+                                placeholder="Cari barang...">
+                            <select id="perPageDetail" class="form-control form-control-sm w-auto">
+                                <option value="10">10</option>
+                                <option value="25">25</option>
+                                <option value="50">50</option>
+                                <option value="100">100</option>
+                            </select>
+                        </div>
+
+                        <table id="table-stockOpname-detail" class="table table-bordered" style="width:100%">
+                            <thead>
+                                <tr>
+                                    <th>Kode Barang</th>
+                                    <th>Nama Barang</th>
+                                    <th>Nama Satuan</th>
+                                    <th>Qty Stock</th>
+                                    <th>Qty Real</th>
+                                    <th>Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbody-detail">
+                                <!-- diisi via JS -->
+                            </tbody>
+                        </table>
+
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div id="infoDetail" class="text-muted small"></div>
+                            <nav>
+                                <ul class="pagination pagination-sm mb-0" id="pagination-detail"></ul>
+                            </nav>
+                        </div>
+                    </div>
 
                     <div class="modal fade" id="modal-scan" tabindex="-1" aria-labelledby="modalScanLabel"
                         aria-hidden="true">
@@ -70,13 +101,6 @@
                                     </button>
                                 </div>
                                 <div class="modal-body">
-                                    <div id="scanner" style="width:100%; height:100px; background:#000;"></div>
-                                    <!-- hasil scan -->
-                                    <div class="form-group mt-3">
-                                        <label for="barcode_result">Hasil Scan Barcode</label>
-                                        <input type="text" id="barcode_result" class="form-control" readonly>
-                                    </div>
-
                                     <!-- input qty -->
                                     <div class="form-group mt-3">
                                         <label for="qty_scan">Qty</label>
@@ -110,8 +134,29 @@
                     }
                 });
 
+                $('#id_gudang').select2({
+                    placeholder: 'Cari data...',
+                    ajax: {
+                        url: "{{ route('getGudang') }}", // sesuaikan dengan route kamu
+                        dataType: 'json',
+                        delay: 250,
+                        data: function(params) {
+                            return {
+                                q: params.term // keyword pencarian
+                            };
+                        },
+                        processResults: function(data) {
+                            return {
+                                results: data
+                            };
+                        },
+                        cache: true
+                    }
+                });
+
                 $(document).on('click', '.btn-reset', function() {
-                    let kode_barang = $(this).data('id');
+                    let id_barang = $(this).data('id');
+                    let id_satuan = $(this).data('satuan');
                     let kode_stock_opname = $('#kode_stock_opname')
                         .val(); // pastikan ada hidden input atau variabel kode opname
 
@@ -130,7 +175,8 @@
                                 url: "{{ route('stockOpname.reset') }}",
                                 type: "DELETE",
                                 data: {
-                                    kode_barang: kode_barang,
+                                    id_barang: id_barang,
+                                    id_satuan: id_satuan,
                                     kode_stock_opname: kode_stock_opname,
                                     _token: $('meta[name="csrf-token"]').attr('content')
                                 },
@@ -141,8 +187,7 @@
                                             res.message,
                                             'success'
                                         );
-                                        $('#table-stockOpname-detail').DataTable().ajax
-                                            .reload();
+                                        loadDetail(currentPageDetail);
                                     } else {
                                         Swal.fire(
                                             'Gagal!',
@@ -167,99 +212,15 @@
                 // ketika tombol scan di klik
                 $(document).on('click', '.btn-scan', function() {
                     let id = $(this).data('id');
-                    let kode_barang = $(this).data('id'); // ambil dari attribute data-id
+                    let id_barang = $(this).data('id'); // ambil dari attribute data-id
+                    let id_satuan = $(this).data('satuan'); // ambil dari attribute data-id
                     $('#modal-scan').modal('show');
-                    $('#barcode_result').val('');
                     $('#qty_scan').val('');
-
-                    let qty_scan = 0;
-                    let scannedBarcodes = new Set(); // simpan hanya barcode unik
-
-
-                    // aktifkan scanner
-                    Quagga.init({
-                            inputStream: {
-                                name: "Live",
-                                type: "LiveStream",
-                                target: document.querySelector('#scanner'),
-                                constraints: {
-                                    width: 1280, // resolusi asli kamera
-                                    height: 720,
-                                    facingMode: "environment"
-                                }
-                            },
-                            decoder: {
-                                readers: ["ean_reader"]
-
-                            }
-                        },
-                        function(err) {
-                            if (err) {
-                                console.log(err);
-                                return;
-                            }
-                            Quagga.start();
-                        }
-                    );
-
-                    // isi input ketika barcode terbaca
-                    Quagga.onDetected(function(result) {
-                        let code = result.codeResult.code;
-
-
-                        // cek apakah barcode sudah pernah discan
-                        if (!scannedBarcodes.has(code)) {
-                            scannedBarcodes.add(code); // simpan barcode baru
-                            qty_scan++; // increment hanya kalau baru
-                            $('#qty_scan').val(qty_scan);
-                            let current = $('#barcode_result').val();
-                            if (current) {
-                                $('#barcode_result').val(current + ',' + code);
-                            } else {
-                                $('#barcode_result').val(code);
-                            }
-                            // stop scanner
-                            Quagga.stop();
-
-                            // tunggu 5 detik lalu init ulang
-                            setTimeout(() => {
-                                Quagga.init({
-                                    inputStream: {
-                                        name: "Live",
-                                        type: "LiveStream",
-                                        target: document.querySelector(
-                                            '#scanner'),
-                                        constraints: {
-                                            width: 1280,
-                                            height: 720,
-                                            facingMode: "environment"
-                                        }
-                                    },
-                                    decoder: {
-                                        readers: ["ean_reader"]
-                                    }
-                                }, function(err) {
-                                    if (err) {
-                                        console.log("Re-init error: ", err);
-                                        return;
-                                    }
-                                    Quagga.start();
-                                });
-                            }, 5000);
-                        }
-
-                    });
 
                     // simpan hasil scan + qty
                     $('#btn-save-scan').off('click').on('click', function() {
-                        let barcode = $('#barcode_result').val();
                         let qty = $('#qty_scan').val();
                         let kode_stock_opname = $('#kode_stock_opname').val();
-
-                        if (barcode === "") {
-                            Swal.fire('Oops!', 'Barcode belum terbaca.', 'warning');
-                            return;
-                        }
 
                         // TODO: kirim ke server
                         $.ajax({
@@ -268,10 +229,10 @@
                             data: {
                                 _token: '{{ csrf_token() }}',
                                 id: id,
-                                barcode: barcode,
                                 qty: qty,
                                 kode_stock_opname: kode_stock_opname,
-                                kode_barang: kode_barang
+                                id_barang: id_barang,
+                                id_satuan: id_satuan
                             },
                             success: function(res) {
                                 if (res.status == 'success') {
@@ -279,9 +240,7 @@
                                         'Data berhasil disimpan',
                                         'success');
                                     $('#modal-scan').modal('hide');
-                                    $('#table-stockOpname-detail').DataTable()
-                                        .ajax
-                                        .reload();
+                                    loadDetail(currentPageDetail);
                                 } else {
                                     Swal.fire({
                                         title: 'Gagal!',
@@ -304,37 +263,28 @@
                     });
                 });
 
-                // stop scanner kalau modal ditutup manual
-                $('#modal-scan').on('hidden.bs.modal', function() {
-                    if (Quagga.running) {
-                        Quagga.stop();
-                    }
-                });
-
-
-
+                let kodeStockOpnameGlobal = '';
+                let currentPageDetail = 1;
+                let searchTimeoutDetail = null;
 
                 $('#form-stockOpname').on('submit', function(e) {
 
-                    e.preventDefault(); // cegah reload halaman
+                    e.preventDefault();
                     e.stopImmediatePropagation();
 
-                    let form = $(this);
-                    // let url = form.attr('action');
-                    url = "{{ route('stockOpname.store') }}";
-                    // let data = form.serialize();
+                    let url = "{{ route('stockOpname.store') }}";
                     const kode_stock_opname = $('#kode_stock_opname').val();
                     const periode = $('#periode').val();
-                    let method = 'POST';
+                    const id_gudang = $('#id_gudang').val();
 
                     $.ajax({
                         url: url,
-                        method: method,
+                        method: 'POST',
                         data: {
                             _token: '{{ csrf_token() }}',
-                            _method: 'POST', // override kalau update
                             kode_stock_opname: kode_stock_opname,
                             periode: periode,
+                            id_gudang: id_gudang
                         },
                         success: function(res) {
                             if (res.status == 'success') {
@@ -346,59 +296,11 @@
                                 });
 
                                 $('#button_submit_header').hide();
-
                                 $('#kembali').show();
+                                $('#detail-section').show();
 
-                                $('#table-stockOpname-detail').show();
-
-                                // isi hidden input untuk relasi detail
-                                // $('#form-stockOpname-detail #kode_stock_opname').val(res.data
-                                //     .kode_stock_opname);
-
-                                // inisialisasi DataTable detail
-                                if (!$.fn.DataTable.isDataTable(
-                                        '#table-stockOpname-detail')) {
-                                    $('#table-stockOpname-detail').DataTable({
-                                        processing: true,
-                                        serverSide: true,
-                                        scrollX: true, // 🔥 ini penting untuk scroll horizontal
-                                        autowidth: false,
-                                        ajax: {
-                                            url: "{{ route('stockOpname.detail') }}",
-                                            data: function(d) {
-                                                d.kode_stock_opname =
-                                                    kode_stock_opname
-                                            }
-                                        },
-                                        columns: [{
-                                                data: 'kode_barang',
-                                                name: 'kode_barang'
-                                            },
-                                            {
-                                                data: 'nama_barang',
-                                                name: 'nama_barang'
-                                            },
-                                            {
-                                                data: 'qty_stock',
-                                                name: 'qty_stock'
-                                            },
-                                            {
-                                                data: 'qty_real',
-                                                name: 'qty_real'
-                                            },
-                                            {
-                                                data: 'action',
-                                                name: 'action',
-                                                orderable: false,
-                                                searchable: false
-                                            }
-                                        ]
-                                    });
-                                } else {
-                                    $('#table-stockOpname-detail').DataTable().ajax
-                                        .reload();
-                                }
-
+                                kodeStockOpnameGlobal = kode_stock_opname;
+                                loadDetail();
                             } else {
                                 Swal.fire({
                                     title: 'Gagal!',
@@ -417,6 +319,122 @@
                             });
                         }
                     });
+                });
+
+                function loadDetail(page = 1) {
+                    currentPageDetail = page;
+                    const search = $('#searchDetail').val();
+                    const perPage = $('#perPageDetail').val();
+
+                    $.ajax({
+                        url: "{{ route('stockOpname.detail') }}",
+                        method: 'get',
+                        data: {
+                            kode_stock_opname: kodeStockOpnameGlobal,
+                            page,
+                            search,
+                            per_page: perPage
+                        },
+                        beforeSend: function() {
+                            $('#tbody-detail').html(
+                                '<tr><td colspan="6" class="text-center">Memuat data...</td></tr>');
+                        },
+                        success: function(res) {
+                            renderDetailTable(res.data);
+                            renderPaginationDetail(res);
+                            $('#infoDetail').text(
+                                `Menampilkan ${res.from ?? 0} - ${res.to ?? 0} dari ${res.total} data`);
+                        },
+                        error: function() {
+                            $('#tbody-detail').html(
+                                '<tr><td colspan="6" class="text-center text-danger">Gagal memuat data</td></tr>'
+                            );
+                        }
+                    });
+                }
+
+                function renderDetailTable(data) {
+                    if (!data.length) {
+                        $('#tbody-detail').html('<tr><td colspan="6" class="text-center">Tidak ada data</td></tr>');
+                        return;
+                    }
+
+                    let rows = '';
+                    data.forEach((barang) => {
+                        let action = '';
+                        if (barang.can_edit) {
+                            action = `
+                <button class="btn btn-sm btn-primary btn-scan" data-id="${barang.barang_encrypted}" data-satuan="${barang.satuan_encrypted}">Input</button>
+                <button class="btn btn-sm btn-danger btn-reset" data-id="${barang.barang_encrypted}" data-satuan="${barang.satuan_encrypted}">Reset</button>
+            `;
+                        }
+
+                        rows += `
+    <tr>
+        <td>${barang.kode_barang}</td>
+        <td>${barang.nama_barang}</td>
+        <td>${barang.nama_satuan}</td>
+        <td class="text-center">${barang.qty_stock}</td>
+        <td class="text-center">${barang.qty_real}</td>
+        <td class="text-center">${action}</td>
+    </tr>`;
+                    });
+                    $('#tbody-detail').html(rows);
+                }
+
+                function renderPaginationDetail(res) {
+                    let links = '';
+                    const current = res.current_page;
+                    const last = res.last_page;
+
+                    if (res.prev_page_url) {
+                        links +=
+                            `<li class="page-item"><a class="page-link" href="#" data-page="${current - 1}">&laquo;</a></li>`;
+                    } else {
+                        links += `<li class="page-item disabled"><span class="page-link">&laquo;</span></li>`;
+                    }
+
+                    const delta = 2;
+                    let range = [];
+                    for (let p = 1; p <= last; p++) {
+                        if (p === 1 || p === last || (p >= current - delta && p <= current + delta)) {
+                            range.push(p);
+                        }
+                    }
+
+                    let prevPage = 0;
+                    range.forEach(function(p) {
+                        if (prevPage && p - prevPage > 1) {
+                            links += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+                        }
+                        links += `<li class="page-item ${p === current ? 'active' : ''}">
+                    <a class="page-link" href="#" data-page="${p}">${p}</a>
+                  </li>`;
+                        prevPage = p;
+                    });
+
+                    if (res.next_page_url) {
+                        links +=
+                            `<li class="page-item"><a class="page-link" href="#" data-page="${current + 1}">&raquo;</a></li>`;
+                    } else {
+                        links += `<li class="page-item disabled"><span class="page-link">&raquo;</span></li>`;
+                    }
+
+                    $('#pagination-detail').html(links);
+                }
+
+                $(document).on('click', '#pagination-detail a', function(e) {
+                    e.preventDefault();
+                    loadDetail($(this).data('page'));
+                });
+
+                $('#searchDetail').on('keyup', function() {
+                    clearTimeout(searchTimeoutDetail);
+                    searchTimeoutDetail = setTimeout(() => loadDetail(1), 400);
+                });
+
+                $('#perPageDetail').on('change', function() {
+                    loadDetail(1);
                 });
                 // Quagga.init({
                 //     inputStream: {

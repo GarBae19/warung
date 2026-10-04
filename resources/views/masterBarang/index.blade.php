@@ -6,9 +6,24 @@
     <div class="content-wrapper mt-3">
         <section class="content">
             <div class="card">
+
                 <div class="card-header d-flex align-items-center justify-content-between">
                     <h3 class="card-title mb-0">Master Barang</h3>
-                    <div class="ml-auto">
+                    <div class="ml-auto d-flex">
+                        <div class="btn-group mr-2">
+                            <button type="button" class="btn btn-success btn-sm" id="btnExportExcel">
+                                <i class="fas fa-file-excel"></i> Excel
+                            </button>
+                            <button type="button" class="btn btn-info btn-sm" id="btnExportCsv">
+                                <i class="fas fa-file-csv"></i> CSV
+                            </button>
+                            <button type="button" class="btn btn-danger btn-sm" id="btnExportPdf">
+                                <i class="fas fa-file-pdf"></i> PDF
+                            </button>
+                            <button type="button" class="btn btn-secondary btn-sm" id="btnPrint">
+                                <i class="fas fa-print"></i> Print
+                            </button>
+                        </div>
                         <button id="tambahData" type="button" class="btn btn-primary btn-sm" data-toggle="modal"
                             data-target="#modal-tambah">
                             <i class="fas fa-plus"></i> Tambah Data
@@ -18,7 +33,23 @@
 
                 <!-- /.card-header -->
                 <div class="card-body">
-                    <table id="dt-barang" class="table table-bordered table-striped">
+
+                    <div class="d-flex justify-content-between mb-2">
+                        <div class="form-inline">
+                            <input type="text" id="searchBarang" class="form-control form-control-sm"
+                                placeholder="Cari...">
+                        </div>
+                        <div>
+                            <select id="perPage" class="form-control form-control-sm">
+                                <option value="10">10</option>
+                                <option value="25">25</option>
+                                <option value="50">50</option>
+                                <option value="100">100</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <table class="table table-bordered table-striped" id="tabel-barang">
                         <thead>
                             <tr>
                                 <th>#</th>
@@ -26,11 +57,22 @@
                                 <th>Nama Barang</th>
                                 <th>Jenis Barang</th>
                                 <th>Brand</th>
+                                <th>Min Stock</th>
                                 <th>Satuan</th>
                                 <th>Action</th>
                             </tr>
                         </thead>
+                        <tbody id="tbody-barang">
+                            <!-- diisi via JS -->
+                        </tbody>
                     </table>
+
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div id="infoBarang" class="text-muted small"></div>
+                        <nav>
+                            <ul class="pagination pagination-sm mb-0" id="pagination-barang"></ul>
+                        </nav>
+                    </div>
                 </div>
                 <!-- /.card-body -->
             </div>
@@ -39,7 +81,7 @@
         <div class="modal fade" id="modal-tambah" tabindex="-1" role="dialog" aria-labelledby="modalTambahLabel"
             aria-hidden="true">
             <div class="modal-dialog" role="document">
-                <form id="form-tambah-barang">
+                <form id="form-tambah-barang" enctype="multipart/form-data">
                     <div class="modal-content">
                         <div class="modal-header">
                             <h5 class="modal-title" id="modalTambahLabel">Tambah Barang</h5>
@@ -69,7 +111,19 @@
                             </div>
                             <div class="form-group">
                                 <label for="select2-satuan">Satuan</label>
-                                <select id="select2-satuan" name="select2-satuan" style="width:100%; height:38px"></select>
+                                <select id="select2-satuan" name="select2-satuan"
+                                    style="width:100%; height:38px"></select>
+                            </div>
+                            <div class="form-group">
+                                <label for="min_stock">Min Stok</label>
+                                <input type="number" class="form-control" id="min_stock" name="min_stock" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="gambar">Gambar</label>
+                                <input type="file" class="form-control" id="gambar" name="gambar">
+                                <input type="hidden" class="form-control" id="gambarLama" name="gambarLama">
+                                <img id="previewGambar" src="" alt="Preview Gambar"
+                                    style="max-width: 100px; margin-top: 10px; display: none;">
                             </div>
                         </div>
                         <div class="modal-footer">
@@ -95,6 +149,7 @@
 
                 $('#select2-jenisBarang').select2({
                     placeholder: 'Cari data...',
+                    dropdownParent: $('#modal-tambah'), // ini sangat penting di modal Bootstrap
                     ajax: {
                         url: "{{ route('getDataJenisBarang') }}", // sesuaikan dengan route kamu
                         dataType: 'json',
@@ -115,6 +170,7 @@
 
                 $('#select2-brand').select2({
                     placeholder: 'Cari data...',
+                    dropdownParent: $('#modal-tambah'), // ini sangat penting di modal Bootstrap
                     ajax: {
                         url: "{{ route('getBrand') }}", // sesuaikan dengan route kamu
                         dataType: 'json',
@@ -135,6 +191,7 @@
 
                 $('#select2-satuan').select2({
                     placeholder: 'Cari data...',
+                    dropdownParent: $('#modal-tambah'), // ini sangat penting di modal Bootstrap
                     ajax: {
                         url: "{{ route('getSatuan') }}", // sesuaikan dengan route kamu
                         dataType: 'json',
@@ -159,6 +216,8 @@
                     $('#btnSimpan').show();
                     $('#btnUpdate').hide();
                     $('#nama_barang').val('');
+                    $('#min_stock').val('');
+                    $('#gambar').val('');
                     let newOptionJenis = new Option('', '', true, true);
                     $('#select2-jenisBarang').append(newOptionJenis).trigger('change');
 
@@ -197,23 +256,36 @@
                     const id = $(this).data('id');
                     // alert(id);
                     $.ajax({
-                        url: `/masterbarang/${id}`, // langsung aja
+                        url: `masterbarang/${id}`, // langsung aja
                         method: 'get',
                         success: function(res) {
                             if (res.status == 'success') {
+                                let min_stock = res.data.min_stock ? res.data.min_stock : 0;
+                                const baseUrl = "{{ url('/') }}";
+
                                 $('#kode_barang').val(res.data.kode_barang);
                                 $('#nama_barang').val(res.data.nama_barang);
+                                $('#min_stock').val(min_stock);
+                                $('#gambarLama').val(res.data.gambar);
+                                $('#previewGambar').attr('src', baseUrl + '/uploads/barang/' + res
+                                    .data
+                                    .gambar);
+                                if (res.data.gambar) {
+                                    $('#previewGambar').show();
+                                } else {
+                                    $('#previewGambar').hide();
+                                }
 
                                 let newOptionJenis = new Option(res.data.jenis_barang.nama_jenis,
-                                    res.data.kode_jenis_barang, true, true);
+                                    res.data.id_jenis_barang, true, true);
                                 $('#select2-jenisBarang').append(newOptionJenis).trigger('change');
 
                                 let newOptionBrand = new Option(res.data.brand.nama_brand,
-                                    res.data.kode_brand, true, true);
+                                    res.data.id_brand, true, true);
                                 $('#select2-brand').append(newOptionBrand).trigger('change');
 
                                 let newOptionSatuan = new Option(res.data.satuan.nama_satuan,
-                                    res.data.kode_satuan, true, true);
+                                    res.data.id_satuan, true, true);
                                 $('#select2-satuan').append(newOptionSatuan).trigger('change');
 
                                 $('#modal-tambah').modal('show');
@@ -245,23 +317,35 @@
                     // alert(id);
                     $('#idBarang').val(id);
                     $.ajax({
-                        url: `/masterbarang/${id}`, // langsung aja
+                        url: `masterbarang/${id}`, // langsung aja
                         method: 'get',
                         success: function(res) {
                             if (res.status == 'success') {
+                                const baseUrl = "{{ url('/') }}";
+
                                 $('#kode_barang').val(res.data.kode_barang);
                                 $('#nama_barang').val(res.data.nama_barang);
+                                $('#min_stock').val(res.data.min_stock);
+                                $('#gambarLama').val(res.data.gambar);
+                                $('#previewGambar').attr('src', baseUrl + '/uploads/barang/' + res
+                                    .data
+                                    .gambar);
+                                if (res.data.gambar) {
+                                    $('#previewGambar').show();
+                                } else {
+                                    $('#previewGambar').hide();
+                                }
 
                                 let newOptionJenis = new Option(res.data.jenis_barang.nama_jenis,
-                                    res.data.kode_jenis_barang, true, true);
+                                    res.data.id_jenis_barang, true, true);
                                 $('#select2-jenisBarang').append(newOptionJenis).trigger('change');
 
                                 let newOptionBrand = new Option(res.data.brand.nama_brand,
-                                    res.data.kode_brand, true, true);
+                                    res.data.id_brand, true, true);
                                 $('#select2-brand').append(newOptionBrand).trigger('change');
 
                                 let newOptionSatuan = new Option(res.data.satuan.nama_satuan,
-                                    res.data.kode_satuan, true, true);
+                                    res.data.id_satuan, true, true);
                                 $('#select2-satuan').append(newOptionSatuan).trigger('change');
 
                                 $('#modal-tambah').modal('show');
@@ -319,7 +403,7 @@
                     }
 
                     Swal.fire({
-                        title: mode === 'create' ? 'Simpan Satuan?' : 'Update Satuan?',
+                        title: mode === 'create' ? 'Simpan Barang?' : 'Update Barang?',
                         text: 'Pastikan data sudah benar.',
                         icon: 'question',
                         showCancelButton: true,
@@ -331,11 +415,14 @@
                             // Di sini kamu bisa kirim data ke server pakai AJAX
                             const kodeBarang = $('#kode_barang').val();
                             const namaBarang = $('#nama_barang').val();
-                            const kode_jenis_barang = $('#select2-jenisBarang').val();
-                            const kode_brand = $('#select2-brand').val();
-                            const kode_satuan = $('#select2-satuan').val();
+                            const id_jenis_barang = $('#select2-jenisBarang').val();
+                            const id_brand = $('#select2-brand').val();
+                            const id_satuan = $('#select2-satuan').val();
+                            const min_stock = $('#min_stock').val();
+                            const gambar = $('#gambar').val();
 
-                            if (!kodeBarang && !namaBarang) {
+                            if (!kodeBarang && !namaBarang && !id_jenis_barang && !id_brand && !
+                                id_satuan && !min_stock && !gambar) {
                                 Swal.fire({
                                     title: 'Gagal!',
                                     text: 'Barang gagal disimpan.',
@@ -344,19 +431,27 @@
                                 });
 
                             } else {
+                                let formData = new FormData();
+
+                                formData.append('_token', '{{ csrf_token() }}');
+                                formData.append('_method', mode === 'update' ? 'PUT' : 'POST');
+                                formData.append('kode_barang', kodeBarang);
+                                formData.append('nama_barang', namaBarang);
+                                formData.append('id_jenis_barang', id_jenis_barang);
+                                formData.append('id_brand', id_brand);
+                                formData.append('id_satuan', id_satuan);
+                                formData.append('min_stock', min_stock);
+
+                                let gambar = $('#gambar')[0].files[0];
+                                if (gambar) {
+                                    formData.append('gambar', gambar);
+                                }
                                 $.ajax({
                                     url: url,
                                     method: method,
-                                    data: {
-                                        _token: '{{ csrf_token() }}',
-                                        _method: mode === 'update' ? 'PUT' :
-                                        'POST', // override kalau update
-                                        kode_barang: kodeBarang,
-                                        nama_barang: namaBarang,
-                                        kode_jenis_barang: kode_jenis_barang,
-                                        kode_brand: kode_brand,
-                                        kode_satuan: kode_satuan,
-                                    },
+                                    data: formData,
+                                    processData: false,
+                                    contentType: false,
                                     success: function(res) {
                                         if (res.status == 'success') {
                                             $('#modal-tambah').modal('hide');
@@ -364,15 +459,12 @@
 
                                             Swal.fire({
                                                 title: 'Berhasil!',
-                                                text: 'Satuan berhasil disimpan.',
+                                                text: 'Barang berhasil disimpan.',
                                                 icon: 'success',
                                                 confirmButtonText: 'OK'
                                             });
 
-                                            // Kalau pakai DataTables, refresh:
-                                            $('#dt-barang').DataTable().ajax
-                                                .reload(null,
-                                                    false);
+                                            loadBarang();
                                         } else {
                                             Swal.fire({
                                                 title: 'Gagal!',
@@ -400,7 +492,7 @@
                     const id = $(this).data('id');
 
                     Swal.fire({
-                        title: 'Hapus Satuan?',
+                        title: 'Hapus Barang?',
                         text: 'Data tidak bisa dikembalikan setelah dihapus.',
                         icon: 'warning',
                         showCancelButton: true,
@@ -409,7 +501,7 @@
                     }).then((result) => {
                         if (result.isConfirmed) {
                             $.ajax({
-                                url: `/masterbarang/${id}`,
+                                url: `masterbarang/${id}`,
                                 type: 'POST',
                                 data: {
                                     _method: 'DELETE',
@@ -418,8 +510,7 @@
                                 success: function(res) {
                                     if (res.status === 'success') {
                                         Swal.fire('Berhasil', res.message, 'success');
-                                        $('#dt-barang').DataTable().ajax.reload(null,
-                                            false);
+                                        loadBarang();
                                     } else {
                                         Swal.fire('Gagal', res.message, 'error');
                                     }
@@ -433,122 +524,157 @@
                 });
 
 
-                var table = $("#dt-barang").DataTable({
-                    dom: 'Bfrtip', // <<< penting!
-                    responsive: true,
-                    searching: true,
-                    ordering: true,
-                    info: true,
-                    lengthChange: false,
-                    autoWidth: false,
-                    processing: true, // indikator loading
-                    serverSide: true, // aktifkan server-side
-                    buttons: [{
-                            extend: 'csv',
-                            filename: 'data_jenis',
-                            exportOptions: {
-                                columns: ':not(.not-export)'
-                            }
-                        },
-                        {
-                            extend: 'excel',
-                            filename: 'data_jenis',
-                            exportOptions: {
-                                columns: ':not(.not-export)'
-                            }
-                        },
-                        {
-                            extend: 'pdf',
-                            filename: 'data_jenis',
-                            exportOptions: {
-                                columns: ':not(.not-export)'
-                            },
-                            customize: function(doc) {
-                                var body = doc.content[1].table.body;
+                let currentPage = 1;
+                let searchTimeout = null;
 
-                                // Nomor urut + teks center
-                                for (var i = 1; i < body.length; i++) {
-                                    if (typeof body[i][0] === 'object') {
-                                        body[i][0].text = (i).toString();
-                                    } else {
-                                        body[i][0] = {
-                                            text: (i).toString()
-                                        };
-                                    }
+                function loadBarang(page = 1) {
+                    currentPage = page;
+                    const search = $('#searchBarang').val();
+                    const perPage = $('#perPage').val();
 
-                                    body[i][0].alignment = 'center';
-                                }
-
-                                body[0][0].alignment = 'center'; // Header nomor urut center
-
-                                // Atur lebar kolom otomatis
-                                doc.content[1].table.widths = Array(body[0].length).fill(
-                                    '*');
-
-                                // Tambahkan garis pembatas
-                                doc.content[1].layout = {
-                                    hLineWidth: function() {
-                                        return 0.5;
-                                    },
-                                    vLineWidth: function() {
-                                        return 0.5;
-                                    },
-                                    hLineColor: function() {
-                                        return '#aaa';
-                                    },
-                                    vLineColor: function() {
-                                        return '#aaa';
-                                    },
-                                };
-                            }
+                    $.ajax({
+                        url: "{{ url('/masterbarang') }}",
+                        method: 'get',
+                        data: {
+                            page,
+                            search,
+                            per_page: perPage
                         },
-                        {
-                            extend: 'print',
-                            exportOptions: {
-                                columns: ':not(.not-export)'
-                            }
+                        beforeSend: function() {
+                            $('#tbody-barang').html(
+                                '<tr><td colspan="8" class="text-center">Memuat data...</td></tr>');
                         },
-                    ],
-                    ajax: "{{ url('/masterbarang') }}",
-                    columns: [{
-                            data: null,
-                            name: 'no',
-                            render: function(data, type, row, meta) {
-                                return meta.row + meta.settings._iDisplayStart + 1;
-                            },
-                            className: 'text-center',
+                        success: function(res) {
+                            renderTable(res.data, res.from);
+                            renderPagination(res);
+                            $('#infoBarang').text(
+                                `Menampilkan ${res.from ?? 0} - ${res.to ?? 0} dari ${res.total} data`);
                         },
-                        {
-                            data: 'kode_barang',
-                            name: 'kode_barang'
-                        },
-                        {
-                            data: 'nama_barang',
-                            name: 'nama_barang'
-                        },
-                        {
-                            data: 'jenis_barang',
-                            name: 'jenis_barang'
-                        },
-                        {
-                            data: 'brand',
-                            name: 'brand'
-                        },
-                        {
-                            data: 'satuan',
-                            name: 'satuan'
-                        },
-                        {
-                            data: 'action',
-                            name: 'action',
-                            orderable: false,
-                            searchable: false,
-                            className: 'text-center not-export'
+                        error: function() {
+                            $('#tbody-barang').html(
+                                '<tr><td colspan="8" class="text-center text-danger">Gagal memuat data</td></tr>'
+                            );
                         }
-                    ],
+                    });
+                }
+
+                function renderTable(data, startNumber) {
+                    if (!data.length) {
+                        $('#tbody-barang').html('<tr><td colspan="8" class="text-center">Tidak ada data</td></tr>');
+                        return;
+                    }
+
+                    let rows = '';
+                    data.forEach((barang, i) => {
+                        rows += `
+            <tr>
+                <td class="text-center">${startNumber + i}</td>
+                <td>${barang.kode_barang}</td>
+                <td>${barang.nama_barang}</td>
+                <td>${barang.jenis_barang_nama}</td>
+                <td>${barang.brand_nama}</td>
+                <td>${barang.min_stock ?? '-'}</td>
+                <td>${barang.satuan_nama}</td>
+                <td class="text-center">
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-secondary dropdown-toggle" type="button" data-toggle="dropdown">
+                            <i class="fas fa-cog"></i>
+                        </button>
+                        <div class="dropdown-menu">
+                            <button class="dropdown-item btn-view" data-id="${barang.id_encrypted}">View</button>
+                            ${!barang.is_used ? `
+                                                                                                                                <button class="dropdown-item btn-edit" data-id="${barang.id_encrypted}">Edit</button>
+                                                                                                                                <button type="button" class="dropdown-item text-danger btn-delete" data-id="${barang.id}">Delete</button>
+                                                                                                                            ` : ''}
+                        </div>
+                    </div>
+                </td>
+            </tr>`;
+                    });
+                    $('#tbody-barang').html(rows);
+                }
+
+                function renderPagination(res) {
+                    let links = '';
+                    const current = res.current_page;
+                    const last = res.last_page;
+
+                    if (res.prev_page_url) {
+                        links +=
+                            `<li class="page-item"><a class="page-link" href="#" data-page="${current - 1}">&laquo;</a></li>`;
+                    } else {
+                        links += `<li class="page-item disabled"><span class="page-link">&laquo;</span></li>`;
+                    }
+
+                    const delta = 2;
+                    let range = [];
+                    for (let p = 1; p <= last; p++) {
+                        if (p === 1 || p === last || (p >= current - delta && p <= current + delta)) {
+                            range.push(p);
+                        }
+                    }
+
+                    let prevPage = 0;
+                    range.forEach(function(p) {
+                        if (prevPage && p - prevPage > 1) {
+                            links += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+                        }
+                        links += `<li class="page-item ${p === current ? 'active' : ''}">
+                        <a class="page-link" href="#" data-page="${p}">${p}</a>
+                      </li>`;
+                        prevPage = p;
+                    });
+
+                    if (res.next_page_url) {
+                        links +=
+                            `<li class="page-item"><a class="page-link" href="#" data-page="${current + 1}">&raquo;</a></li>`;
+                    } else {
+                        links += `<li class="page-item disabled"><span class="page-link">&raquo;</span></li>`;
+                    }
+
+                    $('#pagination-barang').html(links);
+                }
+
+                $(document).on('click', '#pagination-barang a', function(e) {
+                    e.preventDefault();
+                    loadBarang($(this).data('page'));
                 });
 
-                table.buttons().container().appendTo('#dt-barang_wrapper .col-md-6:eq(0)');
+                $('#searchBarang').on('keyup', function() {
+                    clearTimeout(searchTimeout);
+                    searchTimeout = setTimeout(() => loadBarang(1), 400);
+                });
+
+                $('#perPage').on('change', function() {
+                    loadBarang(1);
+                });
+
+                // panggil di awal
+                loadBarang();
+
+                $('#btnExportExcel').on('click', function() {
+                    const search = $('#searchBarang').val();
+                    window.location.href = "{{ route('masterbarang.export.excel') }}?search=" +
+                        encodeURIComponent(search);
+                });
+
+                $('#btnExportCsv').on('click', function() {
+                    const search = $('#searchBarang').val();
+                    window.location.href = "{{ route('masterbarang.export.csv') }}?search=" +
+                        encodeURIComponent(search);
+                });
+
+                $('#btnExportPdf').on('click', function() {
+                    const search = $('#searchBarang').val();
+                    window.location.href = "{{ route('masterbarang.export.pdf') }}?search=" +
+                        encodeURIComponent(search);
+                });
+
+                $('#btnPrint').on('click', function() {
+                    const search = $('#searchBarang').val();
+                    window.open("{{ route('masterbarang.print') }}?search=" + encodeURIComponent(search),
+                        '_blank');
+                });
             });
         </script>
     @endpush

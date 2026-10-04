@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\KonversiSatuanModel;
 use Illuminate\Http\Request;
 use App\Models\MasterJenisBarangModel;
 use App\Models\MasterSatuanModel;
@@ -9,57 +10,58 @@ use App\Models\MasterBrandModel;
 use App\Models\MasterBarangModel;
 use Exception;
 use Yajra\DataTables\Facades\DataTables;
+use App\Exports\MasterBarangExport;
+use Maatwebsite\Excel\Facades\Excel;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class MasterBarang extends Controller
 {
     public function index(Request $request)
     {
         if ($request->ajax()) {
-            $barangs = MasterBarangModel::all();
+            $search = $request->search;
 
-            return DataTables::of($barangs)
-                ->addColumn('jenis_barang', function ($barang) {
-                    return $barang->jenis_barang->nama_jenis ?? '-';
-                })
-                ->addColumn('brand', function ($barang) {
-                    return $barang->brand->nama_brand ?? '-';
-                })
-                ->addColumn('satuan', function ($barang) {
-                    return $barang->satuan->nama_satuan ?? '-';
-                })
-                ->addColumn('action', function ($barang) {
-                    $id = encrypt($barang->id);
-                    return '<div class="dropdown">
-                                <button class="btn btn-sm btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton' . $barang->id . '" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                                    <i class="fas fa-cog"></i>
-                                </button>
-                                <div class="dropdown-menu" aria-labelledby="dropdownMenuButton' . $id . '">
-                                    <button class="dropdown-item btn-view" data-id="' . $id . '">View</button>
-                                    <button class="dropdown-item btn-edit" data-id="' . $id . '">Edit</button>
-                                    <button type="button" class="dropdown-item text-danger btn-delete" data-id="' . $barang->id . '">Delete</button>
-                                </div>
-                            </div>';
-                })
-                ->rawColumns(['action'])
-                ->make(true);
+            $query = MasterBarangModel::with(['jenis_barang', 'brand', 'satuan']);
+
+            if ($search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('kode_barang', 'like', "%{$search}%")
+                        ->orWhere('nama_barang', 'like', "%{$search}%");
+                });
+            }
+
+            $barangs = $query->orderBy('id', 'desc')
+                ->paginate($request->per_page ?? 10);
+
+            $barangs->getCollection()->transform(function ($barang) {
+                $id = encrypt($barang->id);
+                $barang->jenis_barang_nama = $barang->jenis_barang->nama_jenis ?? '-';
+                $barang->brand_nama = $barang->brand->nama_brand ?? '-';
+                $barang->satuan_nama = $barang->satuan->nama_satuan ?? '-';
+                $barang->id_encrypted = $id;
+                return $barang;
+            });
+
+            return response()->json($barangs);
         }
-        $atribute =  'Master Barang';
-        return view('masterBarang.index', compact('atribute')); // Memanggil view home.blade.php
+
+        $atribute = 'Master Barang';
+        return view('masterBarang.index', compact('atribute'));
     }
 
     function getDataJenisBarang(Request $request)
     {
         $search = $request->q;
 
-        $data = MasterJenisBarangModel::select('kode_jenis', 'nama_jenis')
+        $data = MasterJenisBarangModel::select('id', 'nama_jenis')
             ->where('nama_jenis', 'like', "%{$search}%")
-            ->orWhere('kode_jenis', 'like', "%{$search}%")
+            ->orWhere('id', 'like', "%{$search}%")
             ->get();
 
         $result = [];
         foreach ($data as $item) {
             $result[] = [
-                'id' => $item->kode_jenis,
+                'id' => $item->id,
                 'text' => $item->nama_jenis
             ];
         }
@@ -71,15 +73,15 @@ class MasterBarang extends Controller
     {
         $search = $request->q;
 
-        $data = MasterBrandModel::select('kode_brand', 'nama_brand')
+        $data = MasterBrandModel::select('id', 'nama_brand')
             ->where('nama_brand', 'like', "%{$search}%")
-            ->orWhere('kode_brand', 'like', "%{$search}%")
+            ->orWhere('id', 'like', "%{$search}%")
             ->get();
 
         $result = [];
         foreach ($data as $item) {
             $result[] = [
-                'id' => $item->kode_brand,
+                'id' => $item->id,
                 'text' => $item->nama_brand
             ];
         }
@@ -91,15 +93,15 @@ class MasterBarang extends Controller
     {
         $search = $request->q;
 
-        $data = MasterSatuanModel::select('kode_satuan', 'nama_satuan')
+        $data = MasterSatuanModel::select('id', 'nama_satuan')
             ->where('nama_satuan', 'like', "%{$search}%")
-            ->orWhere('kode_satuan', 'like', "%{$search}%")
+            ->orWhere('id', 'like', "%{$search}%")
             ->get();
 
         $result = [];
         foreach ($data as $item) {
             $result[] = [
-                'id' => $item->kode_satuan,
+                'id' => $item->id,
                 'text' => $item->nama_satuan
             ];
         }
@@ -137,17 +139,37 @@ class MasterBarang extends Controller
     function store(Request $request)
     {
         try {
+
             $validated = $request->validate([
                 'kode_barang' => 'required|unique:master_barang,kode_barang',
                 'nama_barang' => 'required',
-                'kode_jenis_barang' => 'required',
-                'kode_brand' => 'required',
-                'kode_satuan' => 'required'
+                'id_jenis_barang' => 'required',
+                'id_brand' => 'required',
+                'id_satuan' => 'required',
+                'min_stock' => 'nullable|integer',
+                'gambar' => 'nullable|image|file|max:2048',
             ]);
 
+            // Handle file upload
+            if ($request->hasFile('gambar')) {
+                $file = $request->file('gambar');
+                $nama = time() . '_' . $file->getClientOriginalName();
+                $file->move(public_path('uploads/barang'), $nama);
+                $validated['gambar'] = $nama;
+            }
 
+            $validated['pecah_satuan'] = 0;
+            $validated['active'] = 1;
 
+            $validated['created_by'] = auth()->user()->name;
+            $validated['bahan_baku'] = 1;
             $barang = MasterBarangModel::create($validated);
+
+            KonversiSatuanModel::create([
+                'id_barang' => $barang->id,
+                'id_satuan_asal' => $barang->id_satuan,
+                'nilai_konversi' => 1
+            ]);
 
             return response()->json([
                 'status' => 'success',
@@ -181,19 +203,40 @@ class MasterBarang extends Controller
 
     public function update(Request $request, $idBarang)
     {
-        $request->validate([
-            'nama_barang' => 'required|unique:master_barang,nama_barang',
-        ]);
 
         try {
+            $request->validate([
+                'nama_barang' => 'required',
+                'min_stock' => 'nullable|integer',
+                'gambar' => 'nullable|image|file|max:2048',
+            ]);
+
+            if ($request->hasFile('gambar')) {
+                $file = $request->file('gambar');
+                $nama = time() . '_' . $file->getClientOriginalName();
+                $file->move(public_path('uploads/barang'), $nama);
+            }
+
             $idBarang = decrypt($idBarang);
             $barang = MasterBarangModel::find($idBarang);
             $barang->update([
                 'kode_barang' => $request->kode_barang,
                 'nama_barang' => $request->nama_barang,
-                'kode_jenis_barang' => $request->kode_jenis_barang,
-                'kode_brand' => $request->kode_brand,
-                'kode_satuan' => $request->kode_satuan,
+                'id_jenis_barang' => $request->id_jenis_barang,
+                'id_brand' => $request->id_brand,
+                'id_satuan' => $request->id_satuan,
+                'min_stock' => $request->min_stock,
+                'gambar' => $request->hasFile('gambar') ? $nama : $barang->gambar,
+                'updated_by' => auth()->user()->name,
+                'pecah_satuan' => $request->pecah_satuan,
+                'bahan_baku' => 1
+            ]);
+
+            $konversi_satuan = KonversiSatuanModel::where('id_barang', $idBarang)->first();
+            $konversi_satuan->update([
+                'id_barang' => $barang->id,
+                'id_satuan_asal' => $barang->id_satuan,
+                'nilai_konversi' => 1,
             ]);
 
             return response()->json([
@@ -225,5 +268,86 @@ class MasterBarang extends Controller
                 'message' => 'Gagal menghapus barang: ' . $e->getMessage()
             ]);
         }
+    }
+
+    function getDataBarang(Request $request)
+    {
+        $search = $request->q;
+
+        $data = MasterBarangModel::select('id', 'nama_barang')
+            ->where('nama_barang', 'like', "%{$search}%")
+            ->orWhere('id', 'like', "%{$search}%")
+            ->get();
+
+        $result = [];
+        foreach ($data as $item) {
+            $result[] = [
+                'id' => $item->id,
+                'text' => $item->nama_barang
+            ];
+        }
+
+        return response()->json($result);
+    }
+
+
+
+    public function exportExcel(Request $request)
+    {
+        return Excel::download(
+            new MasterBarangExport($request->search),
+            'data_barang_' . date('Ymd_His') . '.xlsx'
+        );
+    }
+
+    public function exportCsv(Request $request)
+    {
+        return Excel::download(
+            new MasterBarangExport($request->search),
+            'data_barang_' . date('Ymd_His') . '.csv',
+            \Maatwebsite\Excel\Excel::CSV
+        );
+    }
+
+    public function exportPdf(Request $request)
+    {
+        $search = $request->search;
+
+        $query = MasterBarangModel::with(['jenis_barang', 'brand', 'satuan']);
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('kode_barang', 'like', "%{$search}%")
+                    ->orWhere('nama_barang', 'like', "%{$search}%");
+            });
+        }
+
+        $barangs = $query->orderBy('id', 'desc')->get();
+
+        $pdf = Pdf::loadView('masterBarang.export_pdf', compact('barangs'))
+            ->setPaper('a4', 'landscape');
+
+        return $pdf->download('data_barang_' . date('Ymd_His') . '.pdf');
+    }
+
+    public function printPdf(Request $request)
+    {
+        $search = $request->search;
+
+        $query = MasterBarangModel::with(['jenis_barang', 'brand', 'satuan']);
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('kode_barang', 'like', "%{$search}%")
+                    ->orWhere('nama_barang', 'like', "%{$search}%");
+            });
+        }
+
+        $barangs = $query->orderBy('id', 'desc')->get();
+
+        $pdf = Pdf::loadView('masterBarang.export_pdf', compact('barangs'))
+            ->setPaper('a4', 'landscape');
+
+        return $pdf->stream('data_barang.pdf'); // buka di tab baru untuk print
     }
 }

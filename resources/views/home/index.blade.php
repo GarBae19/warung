@@ -3,6 +3,25 @@
 @section('title', 'Home')
 
 @section('content')
+    <style>
+        #dt-sum-sales tfoot th {
+            font-size: 14px;
+            vertical-align: middle;
+        }
+
+        #dt-sum-sales tbody td {
+            vertical-align: middle;
+        }
+
+        #dt-sum-piutang tfoot th {
+            font-size: 14px;
+            vertical-align: middle;
+        }
+
+        #dt-sum-piutang tbody td {
+            vertical-align: middle;
+        }
+    </style>
     <!-- Content Wrapper. Contains page content -->
     <div class="content-wrapper">
         <!-- Content Header (Page header) -->
@@ -32,15 +51,16 @@
                         <!-- small box -->
                         <div class="small-box bg-info">
                             <div class="inner">
-                                <h3>150</h3>
+                                <h3 id="jumlahSales">{{ $sales }}</h3>
 
-                                <p>New Orders</p>
+                                <p>New Sales</p>
                             </div>
                             <div class="icon">
                                 <i class="ion ion-bag"></i>
                             </div>
-                            <a href="#" class="small-box-footer">More info <i
-                                    class="fas fa-arrow-circle-right"></i></a>
+                            <a href="#" class="small-box-footer" data-toggle="modal" data-target="#modalInfoSales">
+                                More info <i class="fas fa-arrow-circle-right"></i>
+                            </a>
                         </div>
                     </div>
                     <!-- ./col -->
@@ -48,15 +68,18 @@
                         <!-- small box -->
                         <div class="small-box bg-success">
                             <div class="inner">
-                                <h3>53<sup style="font-size: 20px">%</sup></h3>
+                                <h3 id="sumSales"><sup
+                                        style="font-size: 20px">Rp.</sup>{{ number_format($sumsales, 0, ',', '.') }}</h3>
 
-                                <p>Bounce Rate</p>
+                                <p>Keuntungan Sementara</p>
                             </div>
                             <div class="icon">
                                 <i class="ion ion-stats-bars"></i>
                             </div>
-                            <a href="#" class="small-box-footer">More info <i
-                                    class="fas fa-arrow-circle-right"></i></a>
+                            <a href="#" class="small-box-footer" data-toggle="modal" data-target="#modalInfoSumSales">
+                                More info <i class="fas fa-arrow-circle-right"></i>
+                            </a>
+
                         </div>
                     </div>
                     <!-- ./col -->
@@ -64,15 +87,17 @@
                         <!-- small box -->
                         <div class="small-box bg-warning">
                             <div class="inner">
-                                <h3>44</h3>
+                                <h3 id="jumlahStockHabis">{{ $stock }}</h3>
 
-                                <p>User Registrations</p>
+                                <p>Stock Habis</p>
                             </div>
                             <div class="icon">
-                                <i class="ion ion-person-add"></i>
+                                <i class="fas fa-list"></i>
                             </div>
-                            <a href="#" class="small-box-footer">More info <i
-                                    class="fas fa-arrow-circle-right"></i></a>
+                            <a href="#" class="small-box-footer" data-toggle="modal"
+                                data-target="#modalInfoStockHabis">
+                                More info <i class="fas fa-arrow-circle-right"></i>
+                            </a>
                         </div>
                     </div>
                     <!-- ./col -->
@@ -80,15 +105,18 @@
                         <!-- small box -->
                         <div class="small-box bg-danger">
                             <div class="inner">
-                                <h3>65</h3>
+                                <h3 id="sumPiutang"><sup
+                                        style="font-size: 20px">Rp.</sup>{{ number_format($sumpiutang, 0, ',', '.') }}</h3>
 
-                                <p>Unique Visitors</p>
+                                <p>Piutang</p>
                             </div>
                             <div class="icon">
                                 <i class="ion ion-pie-graph"></i>
                             </div>
-                            <a href="#" class="small-box-footer">More info <i
-                                    class="fas fa-arrow-circle-right"></i></a>
+                            <a href="#" class="small-box-footer" data-toggle="modal"
+                                data-target="#modalInfoSumPiutang">
+                                More info <i class="fas fa-arrow-circle-right"></i>
+                            </a>
                         </div>
                     </div>
                     <!-- ./col -->
@@ -636,5 +664,738 @@
             </div><!-- /.container-fluid -->
         </section>
         <!-- /.content -->
+
+        <div class="modal fade" id="modalInfoStockHabis" tabindex="-1" role="dialog"
+            aria-labelledby="modalInfoStockHabisLabel" aria-hidden="true">
+            <div class="modal-dialog modal-xl" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="modalInfoStockHabisLabel">Stock Habis Info</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Tutup">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <table id="dt-stock-habis" class="table table-bordered table-striped">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Item Kode</th>
+                                    <th>Item Nama</th>
+                                    <th>Min Stock</th>
+                                    <th>Stock</th>
+                                </tr>
+                            </thead>
+                        </table>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal"
+                            id="btnBatal">Batal</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal fade" id="modalInfoSales" tabindex="-1" role="dialog" aria-labelledby="modalInfoSalesLabel"
+            aria-hidden="true">
+            <div class="modal-dialog modal-xl" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="modalInfoSalesLabel">Sales Info</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Tutup">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <table id="dt-sales" class="table table-bordered table-striped">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Item Kode</th>
+                                    <th>Item Nama</th>
+                                    <th>Qty</th>
+                                </tr>
+                            </thead>
+                        </table>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal"
+                            id="btnBatal">Batal</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal fade" id="modalInfoSumSales" tabindex="-1" role="dialog"
+            aria-labelledby="modalInfoSumSalesLabel" aria-hidden="true">
+            <div class="modal-dialog modal-xl" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="modalInfoSumSalesLabel">Sales Info</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Tutup">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <table id="dt-sum-sales" class="table table-bordered table-striped w-100">
+
+                            <thead class="table-dark">
+                                <tr>
+                                    <th width="5%">#</th>
+                                    <th>Item Nama</th>
+                                    <th>Satuan</th>
+                                    <th class="text-center">Qty</th>
+                                    <th class="text-end">Harga Beli</th>
+                                    <th class="text-end">Harga Jual</th>
+                                    <th class="text-end">Total Beli</th>
+                                    <th class="text-end">Total Jual</th>
+                                </tr>
+                            </thead>
+
+                            <tbody></tbody>
+
+                            <tfoot>
+                                <tr class="table-secondary">
+                                    <th colspan="6" class="text-end">
+                                        GRAND TOTAL
+                                    </th>
+
+                                    <th id="grand_total_beli" class="text-end"></th>
+
+                                    <th id="grand_total_jual" class="text-end"></th>
+                                </tr>
+
+                                <tr class="table-warning">
+                                    <th colspan="7" class="text-end">
+                                        PROFIT
+                                    </th>
+
+                                    <th id="grand_profit" class="text-end"></th>
+                                </tr>
+                            </tfoot>
+
+                        </table>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal"
+                            id="btnBatal">Batal</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal fade" id="modalInfoSumPiutang" tabindex="-1" role="dialog"
+            aria-labelledby="modalInfoSumPiutangLabel" aria-hidden="true">
+            <div class="modal-dialog modal-xl" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="modalInfoSumPiutangLabel">Piutang Info</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Tutup">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <table id="dt-sum-piutang" class="table table-bordered table-striped w-100">
+
+                            <thead class="table-dark">
+                                <tr>
+                                    <th width="5%">#</th>
+                                    <th>Item Nama</th>
+                                    <th>Satuan</th>
+                                    <th class="text-center">Qty</th>
+                                    <th class="text-end">Harga Beli</th>
+                                    <th class="text-end">Harga Jual</th>
+                                    <th class="text-end">Total Beli</th>
+                                    <th class="text-end">Total Jual</th>
+                                </tr>
+                            </thead>
+
+                            <tbody></tbody>
+
+                            <tfoot>
+                                <tr class="table-secondary">
+                                    <th colspan="6" class="text-end">
+                                        GRAND TOTAL
+                                    </th>
+
+                                    <th id="grand_total_beli_piutang" class="text-end"></th>
+
+                                    <th id="grand_total_jual_piutang" class="text-end"></th>
+                                </tr>
+
+                                <tr class="table-warning">
+                                    <th colspan="7" class="text-end">
+                                        PIUTANG
+                                    </th>
+
+                                    <th id="grand_piutang" class="text-end"></th>
+                                </tr>
+                            </tfoot>
+
+                        </table>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal"
+                            id="btnBatal">Batal</button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
+
+    @push('scripts')
+        <script>
+            async function realtimeCountStockHabis() {
+                const baseUrl = "{{ url('/') }}";
+
+                try {
+                    let res = await fetch(baseUrl + '/countBarangHabis');
+                    let data = await res.json();
+
+                    document.getElementById('jumlahStockHabis').innerText = data.stockHabis;
+                } catch (e) {}
+
+                // langsung panggil lagi (loop)
+                setTimeout(realtimeCountStockHabis, 3000);
+            }
+
+            async function realtimeCountSales() {
+                const baseUrl = "{{ url('/') }}";
+
+                try {
+                    let res = await fetch(baseUrl + '/countSales');
+                    let data = await res.json();
+
+                    document.getElementById('jumlahSales').innerText = data.sales;
+                } catch (e) {}
+
+                // langsung panggil lagi (loop)
+                setTimeout(realtimeCountSales, 3000);
+            }
+
+            async function realTimeSumSales() {
+                const baseUrl = "{{ url('/') }}";
+
+                try {
+                    let res = await fetch(baseUrl + '/sumSales');
+                    let data = await res.json();
+
+                    document.getElementById('sumSales').innerHTML =
+                        "<sup style='font-size:20px'>Rp.</sup> " +
+                        formatInputRibuan(data.sumsales);
+                } catch (e) {}
+
+                // langsung panggil lagi (loop)
+                setTimeout(realTimeSumSales, 3000);
+            }
+
+            async function realTimeSumPiutang() {
+                const baseUrl = "{{ url('/') }}";
+
+                try {
+                    let res = await fetch(baseUrl + '/sumPiutang');
+                    let data = await res.json();
+
+                    document.getElementById('sumPiutang').innerHTML =
+                        "<sup style='font-size:20px'>Rp.</sup> " +
+                        formatInputRibuan(data.sumpiutang);
+                } catch (e) {}
+
+                // langsung panggil lagi (loop)
+                setTimeout(realTimeSumPiutang, 3000);
+            }
+
+            realtimeCountStockHabis();
+            realtimeCountSales();
+            realTimeSumSales();
+            realTimeSumPiutang();
+
+            $(document).ready(function() {
+
+                let tableStockHabis;
+                $('#modalInfoStockHabis').on('shown.bs.modal', function() {
+
+                    if ($.fn.DataTable.isDataTable('#dt-stock-habis')) {
+                        tableStockHabis.ajax.reload(); // kalau sudah ada, reload saja
+                    } else {
+                        tableStockHabis = $("#dt-stock-habis").DataTable({
+                            dom: 'Bfrtip',
+                            responsive: true,
+                            searching: true,
+                            ordering: true,
+                            info: true,
+                            lengthChange: false,
+                            autoWidth: false,
+                            processing: true,
+
+                            buttons: [{
+                                    extend: 'csv',
+                                    filename: 'info_stock_habis',
+                                    exportOptions: {
+                                        columns: ':not(.not-export)'
+                                    }
+                                },
+                                {
+                                    extend: 'excel',
+                                    filename: 'info_stock_habis',
+                                    exportOptions: {
+                                        columns: ':not(.not-export)'
+                                    }
+                                },
+                                {
+                                    extend: 'pdf',
+                                    filename: 'info_stock_habis',
+                                    exportOptions: {
+                                        columns: ':not(.not-export)'
+                                    },
+                                    customize: function(doc) {
+                                        doc.footer = function(currentPage, pageCount) {
+                                            return {
+                                                text: 'Halaman ' + currentPage + ' dari ' +
+                                                    pageCount,
+                                                alignment: 'center',
+                                                margin: [0, 10, 0, 0]
+                                            };
+                                        };
+
+
+                                        var body = doc.content[1].table.body;
+
+                                        // Nomor urut + teks center
+                                        for (var i = 1; i < body.length; i++) {
+                                            if (typeof body[i][0] === 'object') {
+                                                body[i][0].text = (i).toString();
+                                            } else {
+                                                body[i][0] = {
+                                                    text: (i).toString()
+                                                };
+                                            }
+
+                                            body[i][0].alignment = 'center';
+                                        }
+
+                                        body[0][0].alignment =
+                                            'center'; // Header nomor urut center
+
+                                        // Atur lebar kolom otomatis
+                                        doc.content[1].table.widths = Array(body[0]
+                                                .length)
+                                            .fill(
+                                                '*');
+
+                                        // Tambahkan garis pembatas
+                                        doc.content[1].layout = {
+                                            hLineWidth: function() {
+                                                return 0.5;
+                                            },
+                                            vLineWidth: function() {
+                                                return 0.5;
+                                            },
+                                            hLineColor: function() {
+                                                return '#aaa';
+                                            },
+                                            vLineColor: function() {
+                                                return '#aaa';
+                                            },
+                                        };
+                                    }
+                                },
+                                {
+                                    extend: 'print',
+                                    exportOptions: {
+                                        columns: ':not(.not-export)'
+                                    }
+                                },
+                            ],
+
+                            ajax: "{{ url('/stock-habis') }}",
+
+                            columns: [{
+                                    data: null,
+                                    name: 'no',
+                                    render: function(data, type, row, meta) {
+                                        return meta.row + meta.settings._iDisplayStart + 1;
+                                    },
+                                    className: 'text-center',
+                                },
+                                {
+                                    data: 'item_kode',
+                                    name: 'item_kode'
+                                },
+                                {
+                                    data: 'item_nama',
+                                    name: 'item_nama'
+                                },
+                                {
+                                    data: 'min_stock',
+                                    name: 'min_stock'
+                                },
+                                {
+                                    data: 'stock',
+                                    name: 'stock'
+                                }
+                            ],
+                        });
+                        tableStockHabis.buttons().container().appendTo(
+                            '#dt-stock-habis_wrapper .col-md-6:eq(0)');
+                    }
+
+                });
+
+                let tableSales;
+                $('#modalInfoSales').on('shown.bs.modal', function() {
+
+                    if ($.fn.DataTable.isDataTable('#dt-sales')) {
+                        tableSales.ajax.reload(); // kalau sudah ada, reload saja
+                    } else {
+                        tableSales = $("#dt-sales").DataTable({
+                            dom: 'Bfrtip',
+                            responsive: true,
+                            searching: true,
+                            ordering: true,
+                            info: true,
+                            lengthChange: false,
+                            autoWidth: false,
+                            processing: true,
+
+                            buttons: [{
+                                    extend: 'csv',
+                                    filename: 'info_sales',
+                                    exportOptions: {
+                                        columns: ':not(.not-export)'
+                                    }
+                                },
+                                {
+                                    extend: 'excel',
+                                    filename: 'info_sales',
+                                    exportOptions: {
+                                        columns: ':not(.not-export)'
+                                    }
+                                },
+                                {
+                                    extend: 'pdf',
+                                    filename: 'info_sales',
+                                    exportOptions: {
+                                        columns: ':not(.not-export)'
+                                    },
+                                    customize: function(doc) {
+                                        doc.footer = function(currentPage, pageCount) {
+                                            return {
+                                                text: 'Halaman ' + currentPage + ' dari ' +
+                                                    pageCount,
+                                                alignment: 'center',
+                                                margin: [0, 10, 0, 0]
+                                            };
+                                        };
+
+
+                                        var body = doc.content[1].table.body;
+
+                                        // Nomor urut + teks center
+                                        for (var i = 1; i < body.length; i++) {
+                                            if (typeof body[i][0] === 'object') {
+                                                body[i][0].text = (i).toString();
+                                            } else {
+                                                body[i][0] = {
+                                                    text: (i).toString()
+                                                };
+                                            }
+
+                                            body[i][0].alignment = 'center';
+                                        }
+
+                                        body[0][0].alignment =
+                                            'center'; // Header nomor urut center
+
+                                        // Atur lebar kolom otomatis
+                                        doc.content[1].table.widths = Array(body[0].length)
+                                            .fill(
+                                                '*');
+
+                                        // Tambahkan garis pembatas
+                                        doc.content[1].layout = {
+                                            hLineWidth: function() {
+                                                return 0.5;
+                                            },
+                                            vLineWidth: function() {
+                                                return 0.5;
+                                            },
+                                            hLineColor: function() {
+                                                return '#aaa';
+                                            },
+                                            vLineColor: function() {
+                                                return '#aaa';
+                                            },
+                                        };
+                                    }
+                                },
+                                {
+                                    extend: 'print',
+                                    exportOptions: {
+                                        columns: ':not(.not-export)'
+                                    }
+                                },
+                            ],
+
+                            ajax: "{{ url('/salesInfo') }}",
+
+                            columns: [{
+                                    data: null,
+                                    name: 'no',
+                                    render: function(data, type, row, meta) {
+                                        return meta.row + meta.settings._iDisplayStart + 1;
+                                    },
+                                    className: 'text-center',
+                                },
+                                {
+                                    data: 'item_kode',
+                                    name: 'item_kode'
+                                },
+                                {
+                                    data: 'item_nama',
+                                    name: 'item_nama'
+                                },
+                                {
+                                    data: 'qty',
+                                    name: 'qty'
+                                }
+                            ],
+                        });
+                        tableSales.buttons().container().appendTo('#dt-sales_wrapper .col-md-6:eq(0)');
+                    }
+
+                });
+
+                let tableSumSales;
+
+                $('#modalInfoSumSales').on('shown.bs.modal', function() {
+
+                    if ($.fn.DataTable.isDataTable('#dt-sum-sales')) {
+
+                        tableSumSales.ajax.reload();
+
+                    } else {
+
+                        tableSumSales = $("#dt-sum-sales").DataTable({
+
+                            dom: 'Bfrtip',
+
+                            responsive: true,
+                            searching: true,
+                            ordering: true,
+                            info: true,
+                            paging: false,
+                            lengthChange: false,
+                            autoWidth: false,
+                            processing: true,
+                            serverSide: true,
+
+                            buttons: [{
+                                    extend: 'csv',
+                                    filename: 'info_sales'
+                                },
+                                {
+                                    extend: 'excel',
+                                    filename: 'info_sales'
+                                },
+                                {
+                                    extend: 'pdf',
+                                    filename: 'info_sales'
+                                },
+                                {
+                                    extend: 'print'
+                                }
+                            ],
+
+                            ajax: {
+                                url: "{{ url('/sumSalesInfo') }}",
+
+                                dataSrc: function(json) {
+
+                                    $('#grand_total_beli').html(
+                                        'Rp ' + Number(json.grand_total_beli)
+                                        .toLocaleString('id-ID')
+                                    );
+
+                                    $('#grand_total_jual').html(
+                                        'Rp ' + Number(json.grand_total_jual)
+                                        .toLocaleString('id-ID')
+                                    );
+
+                                    $('#grand_profit').html(
+                                        'Rp ' + Number(json.grand_profit)
+                                        .toLocaleString('id-ID')
+                                    );
+
+                                    return json.data;
+                                }
+                            },
+
+                            columns: [{
+                                    data: null,
+                                    className: 'text-center',
+                                    render: function(data, type, row, meta) {
+                                        return meta.row + 1;
+                                    }
+                                },
+
+                                {
+                                    data: 'item_nama'
+                                },
+
+                                {
+                                    data: 'satuan',
+                                    className: 'text-center'
+                                },
+
+                                {
+                                    data: 'qty',
+                                    className: 'text-center'
+                                },
+
+                                {
+                                    data: 'harga_beli',
+                                    className: 'text-end'
+                                },
+
+                                {
+                                    data: 'harga_jual',
+                                    className: 'text-end'
+                                },
+
+                                {
+                                    data: 'total_beli',
+                                    className: 'text-end fw-bold'
+                                },
+
+                                {
+                                    data: 'total_jual',
+                                    className: 'text-end fw-bold'
+                                }
+                            ],
+
+                        });
+
+                        tableSumSales.buttons().container()
+                            .appendTo('#dt-sum-sales_wrapper .col-md-6:eq(0)');
+                    }
+                });
+
+                let tableSumPiutang;
+
+                $('#modalInfoSumPiutang').on('shown.bs.modal', function() {
+
+                    if ($.fn.DataTable.isDataTable('#dt-sum-piutang')) {
+
+                        tableSumPiutang.ajax.reload();
+
+                    } else {
+
+                        tableSumPiutang = $("#dt-sum-piutang").DataTable({
+
+                            dom: 'Bfrtip',
+
+                            responsive: true,
+                            searching: true,
+                            ordering: true,
+                            info: true,
+                            paging: false,
+                            lengthChange: false,
+                            autoWidth: false,
+                            processing: true,
+                            serverSide: true,
+
+                            buttons: [{
+                                    extend: 'csv',
+                                    filename: 'info_sales'
+                                },
+                                {
+                                    extend: 'excel',
+                                    filename: 'info_sales'
+                                },
+                                {
+                                    extend: 'pdf',
+                                    filename: 'info_sales'
+                                },
+                                {
+                                    extend: 'print'
+                                }
+                            ],
+
+                            ajax: {
+                                url: "{{ url('/sumPiutangInfo') }}",
+
+                                dataSrc: function(json) {
+
+                                    $('#grand_total_beli_piutang').html(
+                                        'Rp ' + Number(json.grand_total_beli)
+                                        .toLocaleString('id-ID')
+                                    );
+
+                                    $('#grand_total_jual_piutang').html(
+                                        'Rp ' + Number(json.grand_total_jual)
+                                        .toLocaleString('id-ID')
+                                    );
+
+                                    $('#grand_piutang').html(
+                                        'Rp ' + Number(json.grand_piutang)
+                                        .toLocaleString('id-ID')
+                                    );
+
+                                    return json.data;
+                                }
+                            },
+
+                            columns: [{
+                                    data: null,
+                                    className: 'text-center',
+                                    render: function(data, type, row, meta) {
+                                        return meta.row + 1;
+                                    }
+                                },
+
+                                {
+                                    data: 'item_nama'
+                                },
+
+                                {
+                                    data: 'satuan',
+                                    className: 'text-center'
+                                },
+
+                                {
+                                    data: 'qty',
+                                    className: 'text-center'
+                                },
+
+                                {
+                                    data: 'harga_beli',
+                                    className: 'text-end'
+                                },
+
+                                {
+                                    data: 'harga_jual',
+                                    className: 'text-end'
+                                },
+
+                                {
+                                    data: 'total_beli',
+                                    className: 'text-end fw-bold'
+                                },
+
+                                {
+                                    data: 'total_jual',
+                                    className: 'text-end fw-bold'
+                                }
+                            ],
+
+                        });
+
+                        tableSumPiutang.buttons().container()
+                            .appendTo('#dt-sum-piutang_wrapper .col-md-6:eq(0)');
+                    }
+                });
+            });
+        </script>
+    @endpush
 @endsection

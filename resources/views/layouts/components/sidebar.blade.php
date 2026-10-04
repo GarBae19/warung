@@ -1,7 +1,7 @@
 <!-- Main Sidebar Container -->
 <aside class="main-sidebar sidebar-dark-primary elevation-4">
     <!-- Brand Logo -->
-    <a href="/" class="brand-link">
+    <a href="{{ url('/') }}" class="brand-link">
         <img src="{{ asset('dist/img/AdminLTELogo.png') }}" alt="AdminLTE Logo" class="brand-image img-circle elevation-3"
             style="opacity: .8">
         <span class="brand-text font-weight-light">Warung</span>
@@ -45,11 +45,11 @@
                             </p>
                         </a>
                         @if (optional($menu->SubMenusModel)->count())
-                            <ul class="nav nav-treeview ml-2">
+                            <ul class="nav nav-treeview">
                                 @foreach ($menu->SubMenusModel as $submenus)
                                     <li class="nav-item">
                                         <a href="{{ url($submenus->link) }}"
-                                            class="nav-link {{ $submenus->nama_submenu == $atribute ? 'active' : '' }}">
+                                            class="nav-link sidebar-link {{ $submenus->nama_submenu == $atribute ? 'active' : '' }}">
                                             <i class="far fa-circle nav-icon"></i>
                                             <p>{{ $submenus->nama_submenu }}</p>
                                         </a>

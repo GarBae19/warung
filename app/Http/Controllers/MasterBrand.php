@@ -4,6 +4,9 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\MasterBrandModel;
+use App\Exports\MasterBrandExport;
+use Maatwebsite\Excel\Facades\Excel;
+use Barryvdh\DomPDF\Facade\Pdf;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use Exception;
 use Yajra\DataTables\Facades\DataTables;
@@ -13,27 +16,30 @@ class MasterBrand extends Controller
     function index(Request $request)
     {
         if ($request->ajax()) {
-            $brands = MasterBrandModel::all();
+            $search = $request->search;
 
-            return DataTables::of($brands)
-                ->addColumn('action', function ($brand) {
-                    $id = encrypt($brand->id);
-                    return '<div class="dropdown">
-                                <button class="btn btn-sm btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton' . $brand->id . '" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                                    <i class="fas fa-cog"></i>
-                                </button>
-                                <div class="dropdown-menu" aria-labelledby="dropdownMenuButton' . $id . '">
-                                    <button class="dropdown-item btn-view" data-id="' . $id . '">View</button>
-                                    <button class="dropdown-item btn-edit" data-id="' . $id . '">Edit</button>
-                                    <button type="button" class="dropdown-item text-danger btn-delete" data-id="' . $brand->id . '">Delete</button>
-                                </div>
-                            </div>';
-                })
-                ->rawColumns(['action'])
-                ->make(true);
+            $query = MasterBrandModel::query();
+
+            if ($search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('kode_brand', 'like', "%{$search}%")
+                        ->orWhere('nama_brand', 'like', "%{$search}%");
+                });
+            }
+
+            $brands = $query->orderBy('id', 'desc')
+                ->paginate($request->per_page ?? 10);
+
+            $brands->getCollection()->transform(function ($brand) {
+                $brand->id_encrypted = encrypt($brand->id);
+                return $brand;
+            });
+
+            return response()->json($brands);
         }
-        $atribute =  'Master Brand';
-        return view('masterBrand.index', compact('atribute')); // Memanggil view home.blade.php
+
+        $atribute = 'Master Brand';
+        return view('masterBrand.index', compact('atribute'));
     }
 
     function store(Request $request)
@@ -43,6 +49,8 @@ class MasterBrand extends Controller
                 'kode_brand' => 'required|unique:master_brand,kode_brand',
                 'nama_brand' => 'required'
             ]);
+
+            $validated['created_by'] = auth()->user()->name;
 
             $brand = MasterBrandModel::create($validated);
 
@@ -87,6 +95,7 @@ class MasterBrand extends Controller
             $brand->update([
                 'kode_brand' => $request->kode_brand,
                 'nama_brand' => $request->nama_brand,
+                'updated_by' => auth()->user()->name
             ]);
 
             return response()->json([
@@ -206,5 +215,56 @@ class MasterBrand extends Controller
                 'message' => 'Satuan gagal disimpan' . $e,
             ]);
         }
+    }
+
+    public function exportExcel(Request $request)
+    {
+        return Excel::download(
+            new MasterBrandExport($request->search),
+            'data_brand_' . date('Ymd_His') . '.xlsx'
+        );
+    }
+
+    public function exportCsv(Request $request)
+    {
+        return Excel::download(
+            new MasterBrandExport($request->search),
+            'data_brand_' . date('Ymd_His') . '.csv',
+            \Maatwebsite\Excel\Excel::CSV
+        );
+    }
+
+    public function exportPdf(Request $request)
+    {
+        $brands = $this->getFilteredData($request->search);
+
+        $pdf = Pdf::loadView('masterBrand.export_pdf', compact('brands'))
+            ->setPaper('a4', 'portrait');
+
+        return $pdf->download('data_brand_' . date('Ymd_His') . '.pdf');
+    }
+
+    public function printPdf(Request $request)
+    {
+        $brands = $this->getFilteredData($request->search);
+
+        $pdf = Pdf::loadView('masterBrand.export_pdf', compact('brands'))
+            ->setPaper('a4', 'portrait');
+
+        return $pdf->stream('data_brand.pdf');
+    }
+
+    private function getFilteredData($search = null)
+    {
+        $query = MasterBrandModel::query();
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('kode_brand', 'like', "%{$search}%")
+                    ->orWhere('nama_brand', 'like', "%{$search}%");
+            });
+        }
+
+        return $query->orderBy('id', 'desc')->get();
     }
 }
